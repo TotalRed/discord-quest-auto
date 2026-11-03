@@ -1,7 +1,7 @@
 runtime/
 assets/runner-linux
 assets/runner-win.exe
-dist/
+/dist/
 node_modules/
 *.log
 .cache/
