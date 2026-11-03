@@ -1,9 +1,11 @@
 ## English
 
 **v0.2.1:** Windows fixes.
-- Play quests are now actually credited on Windows: the native runner owns a small
-  minimized window titled with the game executable. Discord's game detection ignored
-  the previous windowless runner, so quests were accepted but stayed at 0:00.
+- Play quests are now actually credited on Windows: the native runner owns a window
+  titled with the game executable. Discord's game detection ignored the previous
+  windowless runner, so quests were accepted but stayed at 0:00. The window is parked
+  off-screen and kept out of the taskbar and Alt+Tab, so parallel quests do not
+  flood the taskbar.
 - Connecting works when Discord is already running: the helper checks the debugging
   port first and, if Discord is open without it, restarts the client with the right
   flags (new **Restart Discord** setting, on by default).
@@ -12,7 +14,8 @@
 - **Native Windows app.** `Discord Quest Auto.exe` (Tauri 2 + WebView2) replaces the
   browser tab: own window, tray icon (open / exit), close-to-tray, single instance,
   starts the agent itself; login startup opens it hidden in the tray. The Start menu
-  shortcut and `Start.vbs` launch it. Linux uses an Edge/Chrome app window or the browser.
+  shortcut and `Start.vbs` launch it, and an existing login-startup entry is switched
+  to it on the next start. Linux uses an Edge/Chrome app window or the browser.
 
 **v0.2.0:** new dark dashboard with quest cards and real progress, searchable
 activity log, automatic Discord discovery on both platforms, client selection,
@@ -31,9 +34,10 @@ v0.2.1. Rewards are claimed manually; Linux credit is not guaranteed.
 ## Русский
 
 **v0.2.1:** исправления для Windows.
-- Квесты на игру теперь реально засчитываются на Windows: runner открывает маленькое
-  свёрнутое окно с именем exe игры. Прежний runner без окна детектор игр Discord
-  не видел, поэтому квесты принимались, но висели на 0:00.
+- Квесты на игру теперь реально засчитываются на Windows: runner держит окно
+  с именем exe игры. Прежний runner без окна детектор игр Discord не видел, поэтому
+  квесты принимались, но висели на 0:00. Окно спрятано за краем экрана и не попадает
+  на панель задач и в Alt+Tab, так что параллельные квесты её не засоряют.
 - Подключение работает, даже если Discord уже открыт: программа сначала проверяет
   отладочный порт и при необходимости перезапускает клиент с нужными параметрами
   (новая настройка «Перезапускать Discord», включена по умолчанию).
@@ -42,7 +46,8 @@ v0.2.1. Rewards are claimed manually; Linux credit is not guaranteed.
 - **Нативное приложение для Windows.** `Discord Quest Auto.exe` (Tauri 2 + WebView2)
   вместо вкладки браузера: своё окно, иконка в трее (открыть / выход), закрытие
   в трей, один экземпляр, сам запускает агент; автозапуск открывает его сразу в трее.
-  Ярлык в «Пуске» и `Start.vbs` запускают именно его. На Linux — окно Edge/Chrome
+  Ярлык в «Пуске» и `Start.vbs` запускают именно его, а старая запись автозапуска
+  переключается на него при следующем старте. На Linux — окно Edge/Chrome
   в режиме приложения или браузер.
 
 **v0.2.0:** новая тёмная панель с карточками и реальным прогрессом квестов,
