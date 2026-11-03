@@ -16,6 +16,11 @@ for (const entry of ['app', 'scripts', 'docs', 'README.md', 'README.ru.md', 'LIC
 const runner = platform === 'windows' ? 'runner-win.exe' : 'runner-linux';
 await copyFile(join(root, 'assets', runner), join(folder, 'assets', runner));
 await copyFile(resolve(nodeBinary), join(folder, 'runtime', platform === 'windows' ? 'node.exe' : 'node'));
+if (platform === 'windows') {
+    const desktop = process.env.DESKTOP_EXE;
+    if (!desktop) throw new Error('DESKTOP_EXE: path to the built Tauri window (Discord Quest Auto.exe) is required');
+    await copyFile(resolve(desktop), join(folder, 'Discord Quest Auto.exe'));
+}
 await copyFile(join(root, 'runtime', 'NODE-LICENSE'), join(folder, 'runtime', 'NODE-LICENSE'));
 for (const entry of platform === 'windows' ? ['Start.vbs', 'Install.vbs'] : ['Start.sh', 'Install.sh']) {
     await copyFile(join(root, entry), join(folder, entry));

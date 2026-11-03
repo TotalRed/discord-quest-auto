@@ -46,7 +46,15 @@ function appBrowser() {
         ['/usr/bin/microsoft-edge', '/usr/bin/google-chrome', '/usr/bin/chromium', '/usr/bin/chromium-browser'];
     return candidates.find(path => existsSync(path));
 }
+const desktopApp = join(root, process.platform === 'win32' ? 'Discord Quest Auto.exe' : 'discord-quest-auto-desktop');
 function openBrowser(url) {
+    if (existsSync(desktopApp)) {
+        // The native window finds this agent through control.json.
+        const child = spawn(desktopApp, [], { detached: true, stdio: 'ignore' });
+        child.on('error', () => openDefaultBrowser(url));
+        child.unref();
+        return;
+    }
     const browser = appBrowser();
     if (!browser) return openDefaultBrowser(url);
     const child = spawn(browser, [`--app=${url}`, `--user-data-dir=${join(dataDir, 'window-profile')}`,
@@ -194,6 +202,12 @@ const server = createServer(async (request, response) => {
                     await startWorker();
                     return json(response, 200, { ok: true });
                 } finally { saveBusy = false; }
+            }
+            if (request.method === 'POST' && request.url === '/api/quit') {
+                json(response, 200, { ok: true });
+                // Used by the desktop window's tray "Exit": stop runners, then leave.
+                setImmediate(() => quit().finally(() => process.exit(0)));
+                return;
             }
             return json(response, 404, { error: 'Not found' });
         }

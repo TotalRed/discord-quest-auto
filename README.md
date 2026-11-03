@@ -8,7 +8,7 @@ Discover eligible play quests, accept them, and launch lightweight native proces
 using executable names from Discord’s application database. Full games are not
 installed. Completion is confirmed using progress reported by Discord.
 
-Built with **Node.js, HTML/CSS/JavaScript, Rust (Linux runner), and C (Windows runner)**.
+Built with **Node.js, HTML/CSS/JavaScript, Rust (Linux runner, Tauri desktop window), and C (Windows runner)**.
 No npm dependencies. Downloads include the runtime and runner.
 Inspired by [Discord Quest Completer](https://github.com/markterence/discord-quest-completer).
 This project is independent of Discord.
@@ -50,11 +50,13 @@ Vesktop has not been validated.
 1. If Discord is already running without the debugging port, the helper restarts it
    with the right flags (**Restart Discord** toggle, on by default; this drops voice calls).
    With the toggle off, fully quit Discord through its tray/menu **Quit** action first.
-2. Open Discord Quest Auto. The panel opens as a standalone window (Edge/Chrome app mode,
-   no address bar), falling back to the default browser.
+2. Open Discord Quest Auto. On Windows this is a native app (`Discord Quest Auto.exe`,
+   Tauri + WebView2) with a tray icon: closing the window hides it to the tray, and
+   **Exit** in the tray menu stops quests. Login startup opens it straight to the tray.
+   On Linux the panel opens as an Edge/Chrome app window or in the default browser.
 3. The detected client appears on the overview. Usually no path entry is needed.
 4. Click Start, or enable background execution and save. Optionally enable startup when signing in.
-5. Close the panel window whenever you like; the agent keeps running.
+5. Close the panel window whenever you like (on Windows it stays in the tray); the agent keeps running.
 
 Execution and startup are **off by default**. Reopen the shortcut to view logs or
 change settings. To stop processing, disable execution and save. Claim rewards

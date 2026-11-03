@@ -6,7 +6,26 @@ on:
 permissions:
   contents: read
 jobs:
+  desktop-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: desktop
+      - name: Build Tauri window
+        run: cargo build --release --manifest-path desktop/Cargo.toml
+      - shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force desktop-out | Out-Null
+          Copy-Item desktop/target/release/discord-quest-auto.exe "desktop-out/Discord Quest Auto.exe"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: desktop-windows
+          path: desktop-out/
   build:
+    needs: desktop-windows
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
@@ -25,7 +44,13 @@ jobs:
       - run: node --test tests/*.test.mjs
       - run: node scripts/download-runtime.mjs
       - run: node scripts/package.mjs linux runtime/linux/node
+      - uses: actions/download-artifact@v4
+        with:
+          name: desktop-windows
+          path: desktop-out
       - run: node scripts/package.mjs windows runtime/windows/node.exe
+        env:
+          DESKTOP_EXE: desktop-out/Discord Quest Auto.exe
       - uses: actions/upload-artifact@v4
         with:
           name: archives
@@ -49,6 +74,18 @@ jobs:
           Copy-Item "$($app.FullName)/assets/runner-win.exe" assets/runner-win.exe
           & "$($app.FullName)/runtime/node.exe" --test tests/*.test.mjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if (-not (Test-Path "$($app.FullName)/Discord Quest Auto.exe")) { throw 'Desktop window missing from archive' }
+          # The window must start, launch the agent and stay up.
+          $env:QUEST_AUTO_DATA_DIR = "$PWD/smoke-data"
+          $window = Start-Process "$($app.FullName)/Discord Quest Auto.exe" -PassThru
+          $deadline = (Get-Date).AddSeconds(40)
+          while (-not (Test-Path "$env:QUEST_AUTO_DATA_DIR/control.json") -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 500 }
+          if (-not (Test-Path "$env:QUEST_AUTO_DATA_DIR/control.json")) { throw 'Agent was not started by the window' }
+          Start-Sleep 3
+          if ($window.HasExited) { throw "Window exited early with code $($window.ExitCode)" }
+          $control = Get-Content "$env:QUEST_AUTO_DATA_DIR/control.json" | ConvertFrom-Json
+          Invoke-RestMethod -Method Post -Uri "http://127.0.0.1:$($control.port)/api/quit" -Headers @{ Authorization = "Bearer $($control.token)" } | Out-Null
+          Stop-Process -Id $window.Id -Force
   publish:
     if: startsWith(github.ref, 'refs/tags/')
     needs: [build, windows-smoke]

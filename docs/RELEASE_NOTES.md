@@ -9,8 +9,10 @@
   flags (new **Restart Discord** setting, on by default).
 - Clearer connection errors: "port never opened" vs "port open, main window not found"
   (with the page list).
-- The panel opens as a standalone app window (Edge/Chrome `--app`, separate profile)
-  instead of a browser tab.
+- **Native Windows app.** `Discord Quest Auto.exe` (Tauri 2 + WebView2) replaces the
+  browser tab: own window, tray icon (open / exit), close-to-tray, single instance,
+  starts the agent itself; login startup opens it hidden in the tray. The Start menu
+  shortcut and `Start.vbs` launch it. Linux uses an Edge/Chrome app window or the browser.
 
 **v0.2.0:** new dark dashboard with quest cards and real progress, searchable
 activity log, automatic Discord discovery on both platforms, client selection,
@@ -37,8 +39,11 @@ v0.2.1. Rewards are claimed manually; Linux credit is not guaranteed.
   (новая настройка «Перезапускать Discord», включена по умолчанию).
 - Понятные ошибки подключения: «порт не открылся» или «порт открыт, но главное окно
   не найдено» (со списком страниц).
-- Панель открывается отдельным окном (Edge/Chrome в режиме приложения, свой профиль),
-  а не вкладкой браузера.
+- **Нативное приложение для Windows.** `Discord Quest Auto.exe` (Tauri 2 + WebView2)
+  вместо вкладки браузера: своё окно, иконка в трее (открыть / выход), закрытие
+  в трей, один экземпляр, сам запускает агент; автозапуск открывает его сразу в трее.
+  Ярлык в «Пуске» и `Start.vbs` запускают именно его. На Linux — окно Edge/Chrome
+  в режиме приложения или браузер.
 
 **v0.2.0:** новая тёмная панель с карточками и реальным прогрессом квестов,
 поиск по журналу, автоматический поиск Discord на Windows и Linux, выбор клиента
