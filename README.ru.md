@@ -1,10 +1,11 @@
 # Discord Quest Auto
 
-[English](README.md) · [Скачать архивы](https://github.com/hikkakirishima-sys/discord-quest-auto/releases)
+[English](README.md) · [Скачать архивы](https://github.com/TotalRed/discord-quest-auto/releases)
 
 Фоновый помощник для **Windows x64 и Linux x64**. Находит доступные квесты
 Discord на запуск игры, принимает их и запускает небольшие нативные процессы
 с именами из справочника Discord. Полные игры не устанавливаются.
+На Windows окна этих процессов спрятаны и не занимают панель задач.
 
 Проект основан на идее [Discord Quest Completer](https://github.com/markterence/discord-quest-completer).
 Это не продукт Discord. Зачёт времени и доступность наград определяются Discord.
@@ -40,7 +41,8 @@ Windows: обычный Discord с сайта Discord; для Store / PTB / Cana
 Устанавливается для текущего пользователя, права администратора не нужны.
 
 Окно можно закрыть: работа продолжится. Повторное открытие ярлыка показывает
-настройки и лог текущего экземпляра. Для остановки выключи выполнение в настройках.
+настройки и лог текущего экземпляра. Для остановки выключи выполнение в настройках
+или на Windows нажми «Выход» в меню трея.
 При переносе портативной папки выключи и заново включи автозапуск.
 
 ## Что поддерживается
@@ -60,8 +62,8 @@ Windows: обычный Discord с сайта Discord; для Store / PTB / Cana
 
 Discord [официально не поддерживает награды на Linux](https://support.discord.com/hc/en-us/articles/22225719947543-Discord-Quests-FAQ).
 Успех определяется ответом Discord, а не отображением активности. Внутренние
-API клиента могут измениться. Windows-порт собран, но полноценное прохождение
-квестов на Windows ещё не подтверждено; версия 0.2.x предварительная.
+API клиента могут измениться. Зачёт квестов на Windows подтверждён на реальных
+квестах в v0.2.1; версия 0.2.x предварительная.
 
 ## Интерфейс
 
@@ -77,8 +79,8 @@ API клиента могут измениться. Windows-порт собра�
 
 ## На чём сделано
 
-Node.js и обычные HTML/CSS/JavaScript для локального окна настроек.
-Нативный Linux runner написан на Rust, Windows runner — на C.
+Node.js и обычные HTML/CSS/JavaScript для панели. Приложение для Windows —
+Tauri 2 (Rust + WebView2). Нативный Linux runner написан на Rust, Windows runner — на C.
 Зависимостей npm нет. Node.js и готовый runner входят в архив.
 GitHub Actions собирает архивы и проверяет нативные процессы на Linux и Windows.
 
@@ -101,7 +103,7 @@ Discord обычным способом.
 
 ## Удаление
 
-Выключи выполнение и автозапуск в настройках, затем удали установленную папку
+Выключи выполнение и автозапуск в настройках (на Windows затем «Выход» в трее), затем удали установленную папку
 `program` из каталога данных выше и ярлык в меню приложений / меню Пуск.
 Оставшиеся настройки и логи можно удалить вместе с каталогом данных.
 
@@ -114,7 +116,10 @@ Node.js 22.15+, без npm-зависимостей. Проверки: `node --t
 Linux runner: `rustc assets/runner-linux.rs -O -C target-feature=+crt-static -o assets/runner-linux`.
 Windows runner: `clang --target=x86_64-pc-windows-msvc -c -Oz -fno-stack-protector -o runner.obj assets/runner-win.c`,
 затем `llvm-dlltool -m i386:x86-64 -d assets/kernel32.def -l kernel32.lib` и
-`lld-link /entry:mainCRTStartup /subsystem:windows /nodefaultlib /out:assets/runner-win.exe runner.obj kernel32.lib`.
+`llvm-dlltool -m i386:x86-64 -d assets/user32.def -l user32.lib` и
+`lld-link /entry:mainCRTStartup /subsystem:windows /nodefaultlib /out:assets/runner-win.exe runner.obj kernel32.lib user32.lib`.
+Приложение для Windows: `cargo build --release --manifest-path desktop/Cargo.toml`;
+для упаковки укажи его в `DESKTOP_EXE`.
 
 Упаковка: `node scripts/package.mjs linux|windows /path/to/node`.
 До упаковки положи лицензию этой версии Node в `runtime/NODE-LICENSE`.

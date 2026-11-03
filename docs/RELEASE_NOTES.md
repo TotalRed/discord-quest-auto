@@ -1,66 +1,83 @@
-## English
-
-**v0.2.1:** Windows fixes.
-- Play quests are now actually credited on Windows: the native runner owns a window
-  titled with the game executable. Discord's game detection ignored the previous
-  windowless runner, so quests were accepted but stayed at 0:00. The window is parked
-  off-screen and kept out of the taskbar and Alt+Tab, so parallel quests do not
-  flood the taskbar.
-- Connecting works when Discord is already running: the helper checks the debugging
-  port first and, if Discord is open without it, restarts the client with the right
-  flags (new **Restart Discord** setting, on by default).
-- Clearer connection errors: "port never opened" vs "port open, main window not found"
-  (with the page list).
-- **Native Windows app.** `Discord Quest Auto.exe` (Tauri 2 + WebView2) replaces the
-  browser tab: own window, tray icon (open / exit), close-to-tray, single instance,
-  starts the agent itself; login startup opens it hidden in the tray. The Start menu
-  shortcut and `Start.vbs` launch it, and an existing login-startup entry is switched
-  to it on the next start. Linux uses an Edge/Chrome app window or the browser.
-
-**v0.2.0:** new dark dashboard with quest cards and real progress, searchable
-activity log, automatic Discord discovery on both platforms, client selection,
-and manual fallback. Windows stable/PTB/Canary and Linux native/Snap/Flatpak
-locations are detected. Flatpak process visibility still depends on its sandbox.
-
-Preview builds for **Windows x64** and **Linux x64** with a bundled runtime,
-local settings, background discovery, parallel runners, and optional login startup.
-Extract the ZIP and open `Install.vbs` (Windows) or `Install.sh` (Linux).
-Portable launchers are included. Execution and startup are off by default.
-
-The README includes screenshots, setup, privacy details, and compatibility limits.
-Native runner checks run on both platforms. Windows quest credit was confirmed on
-v0.2.1. Rewards are claimed manually; Linux credit is not guaranteed.
-
 ## Русский
 
-**v0.2.1:** исправления для Windows.
-- Квесты на игру теперь реально засчитываются на Windows: runner держит окно
-  с именем exe игры. Прежний runner без окна детектор игр Discord не видел, поэтому
-  квесты принимались, но висели на 0:00. Окно спрятано за краем экрана и не попадает
-  на панель задач и в Alt+Tab, так что параллельные квесты её не засоряют.
-- Подключение работает, даже если Discord уже открыт: программа сначала проверяет
-  отладочный порт и при необходимости перезапускает клиент с нужными параметрами
-  (новая настройка «Перезапускать Discord», включена по умолчанию).
-- Понятные ошибки подключения: «порт не открылся» или «порт открыт, но главное окно
+### Что нового в v0.2.1
+
+**Квесты на Windows теперь реально засчитываются.**
+- В v0.2.0 квесты принимались, но висели на 0:00: детектор игр Discord не видел
+  runner без окна. Теперь runner держит окно с именем exe игры, и Discord
+  засчитывает время. Проверено на реальных квестах.
+- Окна runner спрятаны за краем экрана и не появляются на панели задач и в Alt+Tab,
+  поэтому даже десяток параллельных квестов не засоряет панель.
+
+**Отдельное приложение для Windows вместо вкладки браузера.**
+- `Discord Quest Auto.exe` (Tauri 2 + WebView2): своё окно с панелью и иконка в трее.
+- Закрытие окна прячет его в трей, квесты продолжаются. Клик по иконке или
+  «Открыть панель» возвращает окно.
+- «Выход (остановить квесты)» в меню трея останавливает агент и все runner.
+- Только один экземпляр: повторный запуск ярлыка просто показывает окно.
+- Приложение само запускает агент. Автозапуск при входе в Windows открывает его сразу в трее.
+- Ярлык в «Пуске» и `Start.vbs` запускают приложение. Старая запись автозапуска
+  (голый агент без окна) сама переключается на приложение при следующем старте.
+
+**Подключение к Discord.**
+- Если Discord уже открыт без отладочного порта, программа сама перезапустит его
+  с нужными параметрами. Новая настройка «Перезапускать Discord» включена по умолчанию;
+  перезапуск выкидывает из голосового канала.
+- Понятные ошибки: «порт не открылся» или «порт открыт, но главное окно Discord
   не найдено» (со списком страниц).
-- **Нативное приложение для Windows.** `Discord Quest Auto.exe` (Tauri 2 + WebView2)
-  вместо вкладки браузера: своё окно, иконка в трее (открыть / выход), закрытие
-  в трей, один экземпляр, сам запускает агент; автозапуск открывает его сразу в трее.
-  Ярлык в «Пуске» и `Start.vbs` запускают именно его, а старая запись автозапуска
-  переключается на него при следующем старте. На Linux — окно Edge/Chrome
-  в режиме приложения или браузер.
 
-**v0.2.0:** новая тёмная панель с карточками и реальным прогрессом квестов,
-поиск по журналу, автоматический поиск Discord на Windows и Linux, выбор клиента
-и ручной путь. Windows: stable/PTB/Canary; Linux: обычные установки, Snap и Flatpak.
-Видимость игровых процессов из Flatpak зависит от изоляции клиента.
+**Linux:** панель открывается окном Edge/Chrome в режиме приложения, иначе в браузере.
 
-Предварительная версия для **Windows x64** и **Linux x64**: среда запуска уже
-в архиве, локальные настройки, поиск квестов в фоне, параллельные процессы
-и автозапуск при входе в систему.
-Распакуй ZIP и открой `Install.vbs` (Windows) или `Install.sh` (Linux).
-Есть запуск без установки. Выполнение и автозапуск изначально выключены.
+### Как обновиться с v0.2.0
 
-В README — скриншоты, инструкция, сведения о данных и ограничения.
-Запуск runner проверяется на обеих платформах. Зачёт квестов на Windows
-подтверждён в v0.2.1. Награды забираются вручную; зачёт на Linux не гарантируется.
+1. Выключи выполнение в старой версии (или закрой её агент).
+2. Распакуй новый архив целиком и снова запусти `Install.vbs` (Windows) или `Install.sh` (Linux).
+   Настройки и журнал сохранятся.
+
+### Ограничения
+
+Предварительная версия. Награды забираются вручную в Discord. Не все параллельные
+квесты получают время одновременно. Видео, стримы и квесты из нескольких
+обязательных действий не поддерживаются. Зачёт на Linux Discord официально не гарантирует.
+
+## English
+
+### What's new in v0.2.1
+
+**Play quests are now actually credited on Windows.**
+- In v0.2.0 quests were accepted but stayed at 0:00: Discord's game detection
+  ignored the windowless runner. The runner now owns a window titled with the game
+  executable, and Discord credits the time. Confirmed on real quests.
+- Runner windows are parked off-screen and kept out of the taskbar and Alt+Tab,
+  so a dozen parallel quests do not flood the taskbar.
+
+**Native Windows app instead of a browser tab.**
+- `Discord Quest Auto.exe` (Tauri 2 + WebView2): its own window with the panel and a tray icon.
+- Closing the window hides it to the tray; quests keep running. Click the icon or
+  **Open panel** to bring it back.
+- **Exit (stop quests)** in the tray menu stops the agent and all runners.
+- Single instance: opening the shortcut again just shows the window.
+- The app starts the agent itself. Login startup opens it straight to the tray.
+- The Start menu shortcut and `Start.vbs` launch the app. An existing login-startup
+  entry (bare agent without a window) switches to the app on the next start.
+
+**Connecting to Discord.**
+- If Discord is already running without the debugging port, the helper restarts it
+  with the right flags. New **Restart Discord** setting, on by default; restarting
+  drops voice calls.
+- Clearer errors: "port never opened" vs. "port open, but Discord's main window
+  not found" (with the page list).
+
+**Linux:** the panel opens as an Edge/Chrome app window, falling back to the browser.
+
+### Updating from v0.2.0
+
+1. Disable execution in the old version (or stop its agent).
+2. Extract the new archive completely and run `Install.vbs` (Windows) or `Install.sh` (Linux) again.
+   Settings and logs are kept.
+
+### Limits
+
+Preview release. Rewards are claimed manually in Discord. Parallel quests may not all
+receive credit at the same time. Video, streaming and multi-step quests are not
+supported. Discord does not officially support earning rewards on Linux.

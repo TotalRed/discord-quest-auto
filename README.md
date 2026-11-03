@@ -2,11 +2,12 @@
 
 **A background Discord play-quest helper for Windows and Linux, with local settings and optional login startup.**
 
-[Русская инструкция](README.ru.md) · [Download ZIP archives](https://github.com/hikkakirishima-sys/discord-quest-auto/releases) · [Build checks](https://github.com/hikkakirishima-sys/discord-quest-auto/actions)
+[Русская инструкция](README.ru.md) · [Download ZIP archives](https://github.com/TotalRed/discord-quest-auto/releases) · [Build checks](https://github.com/TotalRed/discord-quest-auto/actions)
 
 Discover eligible play quests, accept them, and launch lightweight native processes
 using executable names from Discord’s application database. Full games are not
 installed. Completion is confirmed using progress reported by Discord.
+On Windows, runner windows stay off-screen and out of the taskbar.
 
 Built with **Node.js, HTML/CSS/JavaScript, Rust (Linux runner, Tauri desktop window), and C (Windows runner)**.
 No npm dependencies. Downloads include the runtime and runner.
@@ -32,7 +33,7 @@ no Discord account, control key, or personal data is shown. The current UI is in
 
 ## Install
 
-Download your platform’s ZIP from [Releases](https://github.com/hikkakirishima-sys/discord-quest-auto/releases) and **extract the entire archive**.
+Download your platform’s ZIP from [Releases](https://github.com/TotalRed/discord-quest-auto/releases) and **extract the entire archive**.
 
 | Platform | Install | Run without installing |
 | --- | --- | --- |
@@ -59,8 +60,8 @@ Vesktop has not been validated.
 5. Close the panel window whenever you like (on Windows it stays in the tray); the agent keeps running.
 
 Execution and startup are **off by default**. Reopen the shortcut to view logs or
-change settings. To stop processing, disable execution and save. Claim rewards
-manually inside Discord.
+change settings. To stop processing, disable execution and save, or on Windows use
+**Exit** in the tray menu. Claim rewards manually inside Discord.
 
 ## How it works
 
@@ -90,7 +91,7 @@ startup are configurable.
 - Process activity does **not** guarantee quest credit. Parallel quests may receive different credit.
 - Rewards must be claimed in Discord. No automatic CAPTCHA or reward claiming.
 - Discord [officially does not support earning rewards on Linux](https://support.discord.com/hc/en-us/articles/22225719947543-Discord-Quests-FAQ).
-- Internal APIs may change. This is a **preview release**. Native process checks do not establish successful completion of real Windows quests.
+- Internal APIs may change. This is a **preview release**. Windows quest credit was confirmed on real quests in v0.2.1.
 
 ## Privacy and local access
 
@@ -113,7 +114,7 @@ binaries are checked against SHA-256 checksums before packaging.
 
 ## Uninstall
 
-Disable execution and startup in settings. Remove the `program` folder from the
+Disable execution and startup in settings (on Windows, then **Exit** from the tray). Remove the `program` folder from the
 data directory and the application/Start menu shortcut. Delete the data directory
 to remove remaining logs and settings. When moving a portable folder, disable and
 re-enable startup to update its stored paths.
@@ -131,17 +132,24 @@ node app/agent.mjs --ui
 The dashboard shows quest cards, real progress, skipped/waiting states, connection
 status, and the next discovery scan. Settings and searchable logs have their own tabs.
 
-The release workflow builds both archives and checks native runners on Linux and
-Windows. Linux integration tests cover settings persistence, local access control,
-startup management, and duplicate-instance prevention. Real Windows quest
-completion requires separate validation.
+Windows runner and desktop app (MSVC Build Tools, or clang/lld as in CI):
+
+```bat
+cl /O1 /GS- /c assetsunner-win.c && link /entry:mainCRTStartup /subsystem:windows /nodefaultlib /out:assetsunner-win.exe runner-win.obj kernel32.lib user32.lib
+cargo build --release --manifest-path desktop\Cargo.toml
+```
+
+The release workflow builds both archives and the Windows app, checks native runners
+on Linux and Windows, and smoke-tests that the app starts the agent. Linux integration
+tests cover settings persistence, local access control, startup management, and
+duplicate-instance prevention.
 
 Package with the official runtime on Linux:
 
 ```sh
 node scripts/download-runtime.mjs
 node scripts/package.mjs linux runtime/linux/node
-node scripts/package.mjs windows runtime/windows/node.exe
+DESKTOP_EXE="desktop/target/release/discord-quest-auto.exe" node scripts/package.mjs windows runtime/windows/node.exe
 ```
 
 MIT. Upstream attribution is preserved in [LICENSE](LICENSE).
