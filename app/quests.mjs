@@ -4,7 +4,8 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { setTimeout as delay } from 'node:timers/promises';
 
-import { root, dataDir, loadSettings, discordExecutable } from './config.mjs';
+import { root, dataDir, loadSettings } from './config.mjs';
+import { resolveDiscord } from './discord.mjs';
 const settings = await loadSettings();
 const port = settings.port;
 const endpoint = `http://127.0.0.1:${port}`;
@@ -29,6 +30,9 @@ function stop() {
 for (const signal of ['SIGINT', 'SIGTERM']) process.on(signal, stop);
 process.on('message', message => { if (message === 'stop') stop(); });
 const log = message => console.log(`[${new Date().toLocaleTimeString()}] ${message}`);
+const report = (type, value = {}) => {
+    if (process.connected) process.send({ type, ...value }, () => {});
+};
 
 export function executableParts(name) {
     const parts = name.split(/[\\/]/);
@@ -179,9 +183,10 @@ async function attach(launch) {
         // Keep Discord outside the helper's service cgroup: stopping the helper
         // should terminate its runners without closing the user's Discord.
         const background = process.platform === 'linux' && process.env.DISCORD_QUEST_BACKGROUND === '1';
-        const executable = await discordExecutable(settings);
-        const app = spawn(background ? '/usr/bin/systemd-run' : executable, background ?
-            ['--user', '--collect', '--unit=discord-quest-client', executable, ...args] : args, {
+        const selected = await resolveDiscord(settings);
+        report('connection', { state: 'connecting', client: selected.label });
+        const app = spawn(background ? '/usr/bin/systemd-run' : selected.command, background ?
+            ['--user', '--collect', '--unit=discord-quest-client', selected.command, ...selected.args, ...args] : [...selected.args, ...args], {
             detached: true, stdio: 'ignore', windowsHide: true,
         });
         app.on('error', () => log('Не удалось запустить Discord. Проверь путь в настройках.'));
@@ -294,6 +299,7 @@ async function runQuest(quest, executable) {
             log(`Принят квест: ${quest.name}`);
         }
         log(`Запущен ${executable.name}. Проверяю, засчитывает ли Discord время.`);
+        report('quest', { id: quest.id, name: quest.name, target: quest.target, progress: quest.progress, status: 'running' });
         let lastProgress = quest.progress;
         let lastChange = Date.now();
         const deadline = Date.now() + Math.max(0, quest.target - quest.progress) * 1000 + 900000;
@@ -310,6 +316,7 @@ async function runQuest(quest, executable) {
             const status = current.user_status ?? current.userStatus ?? {};
             if (status.completed_at || status.completedAt) {
                 log(`Квест выполнен: ${quest.name}. Награду забери в Discord.`);
+                report('quest', { id: quest.id, status: 'completed', progress: quest.target });
                 return;
             }
             const progress = Number(status.progress?.PLAY_ON_DESKTOP?.value ?? status.stream_progress_seconds ?? 0);
@@ -317,6 +324,7 @@ async function runQuest(quest, executable) {
                 lastProgress = progress;
                 lastChange = Date.now();
                 log(`${quest.name}: ${progress}/${quest.target} сек.`);
+                report('quest', { id: quest.id, progress, status: 'running' });
             }
             if (Date.now() - lastChange > settings.stallSeconds * 1000) throw new Error(`За ${settings.stallSeconds} сек. Discord не сообщил нового прогресса; процесс остановлен`);
             if (Date.now() - lastChange > 120000 && Date.now() - lastWaitingLog > 60000) {
@@ -338,6 +346,7 @@ async function main() {
     log('Подключено к Discord. Токен аккаунта не нужен. Остановка: Ctrl+C.');
     await waitForDiscord();
     if (stopping) return;
+    report('connection', { state: 'connected' });
     const attempts = new Map();
     const workers = new Map();
     let games = await request('get', '/applications/detectable');
@@ -350,6 +359,7 @@ async function main() {
                 if (Array.isArray(latest)) { games = latest; gamesUpdatedAt = Date.now(); }
             }
             const quests = pendingQuests(await readQuests());
+            report('scan', { available: quests.length, nextScanAt: Date.now() + settings.scanSeconds * 1000 });
             log(`Доступно квестов на запуск игры: ${quests.length}; сейчас выполняется: ${workers.size}.`);
             if (check) {
                 for (const quest of quests) log(`${quest.name}: ${quest.progress}/${quest.target} сек.; принят: ${quest.enrolled}`);
@@ -361,6 +371,7 @@ async function main() {
                 if (!selected) {
                     attempts.set(quest.id, Date.now() + 3600000);
                     log(`Пропущен ${quest.name}: нет подходящего исполняемого файла ни у одной из ${quest.appIds.length} игр.`);
+                    report('quest', { id: quest.id, name: quest.name, target: quest.target, progress: quest.progress, status: 'skipped', reason: 'Нет подходящего процесса в справочнике Discord' });
                     continue;
                 }
                 const { executable } = selected;
@@ -369,6 +380,7 @@ async function main() {
                 attempts.set(quest.id, Infinity);
                 const worker = runQuest({ ...quest, appId: selected.appId }, executable).catch(error => {
                     log(`${quest.name}: ${error.message}`);
+                    report('quest', { id: quest.id, name: quest.name, target: quest.target, status: 'waiting', reason: error.message });
                     attempts.set(quest.id, Date.now() + (error.retryAfter ? error.retryAfter * 1000 : settings.retrySeconds * 1000));
                 }).finally(() => workers.delete(quest.id));
                 workers.set(quest.id, worker);

@@ -5,6 +5,7 @@ import { mkdir, readFile, writeFile, unlink, open } from 'node:fs/promises';
 import { join } from 'node:path';
 import { dataDir, root, loadSettings, saveSettings } from './config.mjs';
 import { setAutostart } from './autostart.mjs';
+import { discoverDiscord } from './discord.mjs';
 
 await mkdir(dataDir, { recursive: true, mode: 0o700 });
 const infoPath = join(dataDir, 'control.json');
@@ -17,6 +18,19 @@ let worker;
 let quitting = false;
 let restartTimer;
 let saveBusy = false;
+let connection = 'idle';
+let nextScanAt = null;
+let available = 0;
+const quests = new Map();
+let discovery;
+let discoveryExpires = 0;
+async function clients(force = false) {
+    if (force || !discovery || Date.now() > discoveryExpires) {
+        discoveryExpires = Date.now() + 30000;
+        discovery = discoverDiscord();
+    }
+    return discovery;
+}
 
 function openBrowser(url) {
     const child = process.platform === 'win32'
@@ -65,6 +79,7 @@ await lock.writeFile(String(process.pid));
 
 async function startWorker() {
     if (worker || !settings.enabled || quitting) return;
+    connection = 'connecting';
     // Rotate the text log before spawning a new worker (up to 5 MiB per file).
     const fs = await import('node:fs/promises');
     if (await fs.stat(logPath).then(s => s.size > 5 * 1024 * 1024, () => false)) {
@@ -79,8 +94,19 @@ async function startWorker() {
         });
     } finally { await log.close(); }
     worker.once('error', error => console.error('Worker:', error.message));
+    worker.on('message', event => {
+        if (event?.type === 'connection') connection = event.state;
+        if (event?.type === 'scan') { available = event.available; nextScanAt = event.nextScanAt; }
+        if (event?.type === 'quest' && typeof event.id === 'string') {
+            const { type, ...update } = event;
+            quests.set(event.id, { ...quests.get(event.id), ...update });
+            if (quests.size > 200) quests.delete(quests.keys().next().value);
+        }
+    });
     worker.once('exit', () => {
         worker = undefined;
+        connection = settings.enabled && !quitting ? 'retrying' : 'idle';
+        for (const [id, quest] of quests) if (quest.status === 'running') quests.set(id, { ...quest, status: 'paused' });
         if (!quitting && settings.enabled) restartTimer = setTimeout(() => startWorker().catch(console.error), 60000);
     });
 }
@@ -113,6 +139,7 @@ const server = createServer(async (request, response) => {
         response.setHeader('referrer-policy', 'no-referrer');
         if (request.url.startsWith('/api/')) {
             if (!authorized(request)) return json(response, 403, { error: 'Открой настройки через ярлык программы' });
+            if (request.method === 'GET' && request.url === '/api/clients') return json(response, 200, { clients: await clients(true) });
             if (request.method === 'GET' && request.url === '/api/status') {
                 let logs = '';
                 try {
@@ -124,7 +151,8 @@ const server = createServer(async (request, response) => {
                         logs = buffer.toString('utf8');
                     } finally { await file.close(); }
                 } catch { /* No logs yet. */ }
-                return json(response, 200, { settings, running: Boolean(worker), platform: process.platform, logs });
+                return json(response, 200, { settings, running: Boolean(worker), platform: process.platform, logs,
+                    connection, available, nextScanAt, quests: [...quests.values()], clients: await clients() });
             }
             if (request.method === 'POST' && request.url === '/api/settings') {
                 if (saveBusy) return json(response, 409, { error: 'Настройки уже сохраняются' });

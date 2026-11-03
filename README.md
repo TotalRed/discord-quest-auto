@@ -18,13 +18,17 @@ This project is independent of Discord.
 These show the real interface with a **demo data source**. Progress is illustrative;
 no Discord account, control key, or personal data is shown. The current UI is in Russian.
 
-**Settings: client path, timings, execution, and login startup**
+**Settings: automatic client discovery, manual fallback, and timings**
 
 ![Settings using a clean demo profile](docs/screenshots/settings.png)
 
 **Status: parallel quests and progress logs**
 
 ![Status with clearly marked demonstration progress](docs/screenshots/status.png)
+
+**Activity log with search and follow mode**
+
+![Activity log with demo messages](docs/screenshots/activity.png)
 
 ## Install
 
@@ -37,13 +41,16 @@ Download your platform’s ZIP from [Releases](https://github.com/hikkakirishima
 
 No administrator access or separate Node.js/Rust installation is required.
 Linux needs glibc 2.28+, `xdg-open`, and the regular Discord desktop client.
-Windows uses regular Discord; Store/PTB/Canary may need a custom executable path.
+Windows automatically checks stable Discord, PTB, Canary, versioned app folders,
+and Program Files. Linux checks PATH, standard install folders, Snap, and Flatpak.
+Use **Find Discord** to rescan; settings also offer a client selector and manual path.
+Flatpak isolation may prevent game detection. Windows Store installs may require a custom path.
 Vesktop has not been validated.
 
 1. Fully quit Discord through its tray/menu **Quit** action before first use.
 2. Open Discord Quest Auto. Settings open in your browser on a local address.
-3. Leave the Discord path empty for automatic detection, or enter its executable path.
-4. Enable background execution and save. Optionally enable startup when signing in.
+3. The detected client appears on the overview. Usually no path entry is needed.
+4. Click Start, or enable background execution and save. Optionally enable startup when signing in.
 5. Close the settings tab whenever you like; the agent keeps running.
 
 Execution and startup are **off by default**. Reopen the shortcut to view logs or
@@ -115,6 +122,9 @@ rustc assets/runner-linux.rs -O -C target-feature=+crt-static -C strip=symbols -
 node --test tests/*.test.mjs
 node app/agent.mjs --ui
 ```
+
+The dashboard shows quest cards, real progress, skipped/waiting states, connection
+status, and the next discovery scan. Settings and searchable logs have their own tabs.
 
 The release workflow builds both archives and checks native runners on Linux and
 Windows. Linux integration tests cover settings persistence, local access control,

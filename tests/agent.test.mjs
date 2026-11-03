@@ -31,6 +31,7 @@ test('local UI rejects unauthenticated and foreign-origin requests; settings sur
         const base = `http://127.0.0.1:${info.port}`;
         const headers = { authorization: `Bearer ${info.token}` };
         assert.equal((await fetch(base + '/api/status')).status, 403);
+        assert.equal((await fetch(base + '/api/clients')).status, 403);
         assert.equal((await fetch(base + '/api/status', { headers: { ...headers, origin: 'https://example.org' } })).status, 403);
         const foreignHostStatus = await new Promise((resolve, reject) => {
             const req = httpRequest(base + '/api/status', { headers: { ...headers, host: 'example.org' } }, response => { response.resume(); resolve(response.statusCode); });
@@ -40,6 +41,10 @@ test('local UI rejects unauthenticated and foreign-origin requests; settings sur
         const state = await (await fetch(base + '/api/status', { headers })).json();
         assert.equal(state.running, false);
         assert.equal(state.settings.enabled, false);
+        assert.deepEqual(state.quests, []);
+        assert.equal(state.connection, 'idle');
+        assert.ok(Array.isArray(state.clients));
+        assert.ok(Array.isArray((await (await fetch(base + '/api/clients', { headers })).json()).clients));
         const settings = { ...state.settings, scanSeconds: 120, autostart: true };
         assert.equal((await fetch(base + '/api/settings', { method: 'POST', headers, body: JSON.stringify(settings) })).status, 200);
         const startup = await readFile(join(dir, 'config', 'autostart', 'discord-quest-auto.desktop'), 'utf8');

@@ -1,6 +1,6 @@
 import { homedir } from 'node:os';
 import { join, resolve, dirname } from 'node:path';
-import { mkdir, readFile, writeFile, readdir, stat } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 
 export const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -38,18 +38,4 @@ export async function saveSettings(input) {
     await mkdir(dataDir, { recursive: true, mode: 0o700 });
     await writeFile(settingsPath, JSON.stringify(settings, null, 2), { mode: 0o600 });
     return settings;
-}
-export async function discordExecutable(settings, platform = process.platform) {
-    if (settings.discordPath) return settings.discordPath;
-    if (platform !== 'win32') return 'discord';
-    const parent = join(process.env.LOCALAPPDATA || join(homedir(), 'AppData', 'Local'), 'Discord');
-    let versions;
-    try { versions = (await readdir(parent)).filter(name => /^app-\d/.test(name)); }
-    catch { throw new Error('Discord не найден. Укажи путь к Discord.exe в настройках.'); }
-    versions.sort((a, b) => b.localeCompare(a, undefined, { numeric: true }));
-    for (const version of versions) {
-        const path = join(parent, version, 'Discord.exe');
-        if (await stat(path).then(s => s.isFile(), () => false)) return path;
-    }
-    throw new Error('Discord.exe не найден. Укажи путь в настройках.');
 }
