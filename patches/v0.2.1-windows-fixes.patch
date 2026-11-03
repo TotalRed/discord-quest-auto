@@ -1,0 +1,407 @@
+diff --git a/.github/workflows/release.yml b/.github/workflows/release.yml
+index a467eec..9e5da82 100644
+--- a/.github/workflows/release.yml
++++ b/.github/workflows/release.yml
+@@ -18,9 +18,10 @@ jobs:
+       - name: Build native runners
+         run: |
+           rustc assets/runner-linux.rs -O -C target-feature=+crt-static -C strip=symbols -o assets/runner-linux
+-          clang --target=x86_64-pc-windows-msvc -c -Oz -fno-stack-protector -o /tmp/runner.obj assets/runner-win.c
++          clang --target=x86_64-pc-windows-msvc -c -Oz -fno-stack-protector -fno-builtin -o /tmp/runner.obj assets/runner-win.c
+           llvm-dlltool -m i386:x86-64 -d assets/kernel32.def -l /tmp/kernel32.lib
+-          lld-link /entry:mainCRTStartup /subsystem:windows /nodefaultlib /out:assets/runner-win.exe /tmp/runner.obj /tmp/kernel32.lib
++          llvm-dlltool -m i386:x86-64 -d assets/user32.def -l /tmp/user32.lib
++          lld-link /entry:mainCRTStartup /subsystem:windows /nodefaultlib /out:assets/runner-win.exe /tmp/runner.obj /tmp/kernel32.lib /tmp/user32.lib
+       - run: node --test tests/*.test.mjs
+       - run: node scripts/download-runtime.mjs
+       - run: node scripts/package.mjs linux runtime/linux/node
+diff --git a/README.md b/README.md
+index 2c064b0..dd6372b 100644
+--- a/README.md
++++ b/README.md
+@@ -47,11 +47,14 @@ Use **Find Discord** to rescan; settings also offer a client selector and manual
+ Flatpak isolation may prevent game detection. Windows Store installs may require a custom path.
+ Vesktop has not been validated.
+ 
+-1. Fully quit Discord through its tray/menu **Quit** action before first use.
+-2. Open Discord Quest Auto. Settings open in your browser on a local address.
++1. If Discord is already running without the debugging port, the helper restarts it
++   with the right flags (**Restart Discord** toggle, on by default; this drops voice calls).
++   With the toggle off, fully quit Discord through its tray/menu **Quit** action first.
++2. Open Discord Quest Auto. The panel opens as a standalone window (Edge/Chrome app mode,
++   no address bar), falling back to the default browser.
+ 3. The detected client appears on the overview. Usually no path entry is needed.
+ 4. Click Start, or enable background execution and save. Optionally enable startup when signing in.
+-5. Close the settings tab whenever you like; the agent keeps running.
++5. Close the panel window whenever you like; the agent keeps running.
+ 
+ Execution and startup are **off by default**. Reopen the shortcut to view logs or
+ change settings. To stop processing, disable execution and save. Claim rewards
+diff --git a/README.ru.md b/README.ru.md
+index e0483e7..9fe4da6 100644
+--- a/README.ru.md
++++ b/README.ru.md
+@@ -23,11 +23,13 @@ Discord на запуск игры, принимает их и запускае
+ Windows: обычный Discord с сайта Discord; для Store / PTB / Canary может
+ потребоваться вручную выбрать путь к exe. Vesktop не тестировался.
+ 
+-В браузере откроется **локальная панель управления** с карточками квестов,
+-прогрессом и состоянием подключения. Настройки и журнал вынесены в отдельные вкладки.
+-Перед первым включением
+-полностью выйди из Discord через Quit, чтобы он запустился с локальным
+-отладочным портом. Найденный клиент виден на главном экране; обычно вводить путь
++Панель управления открывается **отдельным окном** (Edge или Chrome в режиме
++приложения, без адресной строки; если их нет — в обычном браузере) с карточками
++квестов, прогрессом и состоянием подключения. Настройки и журнал вынесены в отдельные вкладки.
++Если Discord уже открыт без отладочного порта, программа сама перезапустит его
++с нужными параметрами (переключатель «Перезапускать Discord», включён по умолчанию;
++перезапуск выкинет из голосового канала). Без него перед первым включением
++полностью выйди из Discord через Quit. Найденный клиент виден на главном экране; обычно вводить путь
+ не нужно. Кнопка «Найти Discord» повторяет поиск. Windows проверяет обычную
+ установку, PTB, Canary и каталоги версий. Linux проверяет PATH, стандартные
+ каталоги, Snap и Flatpak. Изоляция Flatpak может мешать обнаружению процессов.
+diff --git a/app/agent.mjs b/app/agent.mjs
+index 5043a58..8a51206 100644
+--- a/app/agent.mjs
++++ b/app/agent.mjs
+@@ -3,6 +3,7 @@ import { randomBytes, timingSafeEqual } from 'node:crypto';
+ import { spawn, fork } from 'node:child_process';
+ import { mkdir, readFile, writeFile, unlink, open } from 'node:fs/promises';
+ import { join } from 'node:path';
++import { existsSync } from 'node:fs';
+ import { dataDir, root, loadSettings, saveSettings } from './config.mjs';
+ import { setAutostart } from './autostart.mjs';
+ import { discoverDiscord } from './discord.mjs';
+@@ -32,7 +33,29 @@ async function clients(force = false) {
+     return discovery;
+ }
+ 
++// Open the panel as a standalone app window (Edge/Chrome --app mode, own profile),
++// falling back to the default browser.
++function appBrowser() {
++    const env = process.env;
++    const candidates = process.platform === 'win32' ? [
++        [env['ProgramFiles(x86)'], 'Microsoft', 'Edge', 'Application', 'msedge.exe'],
++        [env.ProgramFiles, 'Microsoft', 'Edge', 'Application', 'msedge.exe'],
++        [env.ProgramFiles, 'Google', 'Chrome', 'Application', 'chrome.exe'],
++        [env.LOCALAPPDATA, 'Google', 'Chrome', 'Application', 'chrome.exe'],
++    ].filter(parts => parts[0]).map(parts => join(...parts)) :
++        ['/usr/bin/microsoft-edge', '/usr/bin/google-chrome', '/usr/bin/chromium', '/usr/bin/chromium-browser'];
++    return candidates.find(path => existsSync(path));
++}
+ function openBrowser(url) {
++    const browser = appBrowser();
++    if (!browser) return openDefaultBrowser(url);
++    const child = spawn(browser, [`--app=${url}`, `--user-data-dir=${join(dataDir, 'window-profile')}`,
++        '--window-size=1180,800', '--no-first-run', '--no-default-browser-check', '--disable-extensions'],
++    { detached: true, stdio: 'ignore' });
++    child.on('error', () => openDefaultBrowser(url));
++    child.unref();
++}
++function openDefaultBrowser(url) {
+     const child = process.platform === 'win32'
+         ? spawn('rundll32.exe', ['url.dll,FileProtocolHandler', url], { detached: true, stdio: 'ignore', windowsHide: true })
+         : spawn('xdg-open', [url], { detached: true, stdio: 'ignore' });
+diff --git a/app/config.mjs b/app/config.mjs
+index 0bc9806..9dcba9d 100644
+--- a/app/config.mjs
++++ b/app/config.mjs
+@@ -9,11 +9,11 @@ export const dataDir = process.env.QUEST_AUTO_DATA_DIR || (process.platform ===
+     : join(process.env.XDG_DATA_HOME || join(homedir(), '.local', 'share'), 'discord-quest-auto'));
+ export const settingsPath = join(dataDir, 'settings.json');
+ export const defaults = Object.freeze({ discordPath: '', port: 9237, scanSeconds: 60,
+-    stallSeconds: 600, retrySeconds: 900, autostart: false, enabled: false });
++    stallSeconds: 600, retrySeconds: 900, autostart: false, enabled: false, restartDiscord: true });
+ 
+ export function validateSettings(input) {
+     const result = {};
+-    for (const key of ['enabled', 'autostart']) {
++    for (const key of ['enabled', 'autostart', 'restartDiscord']) {
+         const value = input[key] ?? defaults[key];
+         if (typeof value !== 'boolean') throw new Error(`${key}: требуется true или false`);
+         result[key] = value;
+diff --git a/app/index.html b/app/index.html
+index 1992aba..981fec8 100644
+--- a/app/index.html
++++ b/app/index.html
+@@ -20,7 +20,7 @@
+ <a class="brand" href="#" aria-label="Discord Quest Auto"><span class="brand-mark">q<span>↗</span></span><span>quest<span class="brand-auto">auto</span></span></a>
+ <div class="workspace-label">ЛИЧНАЯ ПАНЕЛЬ</div>
+ <nav aria-label="Разделы"><button class="nav-button selected" type="button" data-page="overview" aria-current="page"><svg><use href="#i-grid"/></svg>Обзор<span class="nav-indicator"></span></button><button class="nav-button" type="button" data-page="settings"><svg><use href="#i-settings"/></svg>Настройки</button><button class="nav-button" type="button" data-page="activity"><svg><use href="#i-log"/></svg>Журнал</button></nav>
+-<div class="sidebar-bottom"><div class="local-note"><svg><use href="#i-shield"/></svg><div><strong>На твоём компьютере</strong><span>Без ввода токена аккаунта</span></div></div><div class="sidebar-footer"><span class="dot"></span> Discord Quest Auto <span>v0.2.0</span></div></div>
++<div class="sidebar-bottom"><div class="local-note"><svg><use href="#i-shield"/></svg><div><strong>На твоём компьютере</strong><span>Без ввода токена аккаунта</span></div></div><div class="sidebar-footer"><span class="dot"></span> Discord Quest Auto <span>v0.2.1</span></div></div>
+ </aside>
+ <main>
+ <header class="topbar"><div class="breadcrumb">Рабочее пространство <span>/</span> <strong id="page-name">Обзор</strong></div><div class="topbar-right"><span id="platform" class="platform">—</span><span class="connection" id="connection"><span class="dot"></span><span id="status">Подключение…</span></span><button class="icon-button" id="refresh" type="button" aria-label="Обновить статус" title="Обновить статус"><svg><use href="#i-refresh"/></svg></button></div></header>
+@@ -31,7 +31,7 @@
+ <div class="client-banner"><div class="client-icon"><svg><use href="#i-client"/></svg></div><div class="client-info"><div class="client-title"><strong id="client-name">Ищем Discord</strong><span class="small-badge" id="client-badge">Автопоиск</span></div><p id="client-path">Проверяем установленные клиенты на этом компьютере…</p></div><button class="secondary-button" id="detect-client" type="button"><svg><use href="#i-refresh"/></svg>Найти Discord</button></div>
+ <div class="metrics"><article class="metric"><span>Сейчас выполняется</span><div><strong id="active-count">0</strong><svg><use href="#i-play"/></svg></div><p>Параллельно, в фоне</p></article><article class="metric"><span>Завершено за сеанс</span><div><strong id="complete-count">0</strong><svg><use href="#i-check"/></svg></div><p>Награды забираются в Discord</p></article><article class="metric"><span>Следующая проверка</span><div><strong id="next-scan">—</strong><svg><use href="#i-clock"/></svg></div><p>Новые задания подхватятся сами</p></article></div>
+ <div class="overview-grid"><section class="panel quest-panel"><div class="panel-heading"><div><h2>Твои квесты</h2><p>Прогресс, который подтверждает Discord</p></div><span class="count-badge" id="quest-count">0</span></div><div id="quest-list" aria-live="polite"><div class="empty-state"><div class="empty-icon"><svg><use href="#i-grid"/></svg></div><h3>Здесь появятся квесты</h3><p>Включи фоновый режим. Программа найдёт доступные задания и начнёт работу.</p></div></div><div class="panel-footer"><span class="dot"></span><span id="updated">Статус ещё не получен</span></div></section>
+-<aside class="control-column"><section class="panel automation-panel"><div class="panel-heading"><div><h2>Автоматизация</h2><p>Настроил — и занимаешься своим</p></div></div><label class="toggle-row"><span><strong>Фоновый режим</strong><small>Принимать и запускать квесты</small></span><input name="enabled" type="checkbox" role="switch"><span class="switch" aria-hidden="true"></span></label><label class="toggle-row"><span><strong>Автозапуск</strong><small>При входе в Windows или Linux</small></span><input name="autostart" type="checkbox" role="switch"><span class="switch" aria-hidden="true"></span></label><button type="button" class="primary-button run-button" id="run-button" disabled><svg><use href="#i-play"/></svg><span>Запустить</span></button><p class="control-hint" id="run-hint">Окно можно закрыть.<br>Работа продолжится в фоне.</p></section><section class="notice"><span class="notice-icon">i</span><div><strong>Первый запуск?</strong><p>Полностью выйди из Discord через Quit. Программа откроет клиент с нужными параметрами.</p></div></section><p class="compatibility-note" id="compatibility-note">Зачёт времени зависит от Discord. Награды забираются вручную.</p></aside></div>
++<aside class="control-column"><section class="panel automation-panel"><div class="panel-heading"><div><h2>Автоматизация</h2><p>Настроил — и занимаешься своим</p></div></div><label class="toggle-row"><span><strong>Фоновый режим</strong><small>Принимать и запускать квесты</small></span><input name="enabled" type="checkbox" role="switch"><span class="switch" aria-hidden="true"></span></label><label class="toggle-row"><span><strong>Автозапуск</strong><small>При входе в Windows или Linux</small></span><input name="autostart" type="checkbox" role="switch"><span class="switch" aria-hidden="true"></span></label><label class="toggle-row"><span><strong>Перезапускать Discord</strong><small>Если он открыт без отладочного порта</small></span><input name="restartDiscord" type="checkbox" role="switch"><span class="switch" aria-hidden="true"></span></label><button type="button" class="primary-button run-button" id="run-button" disabled><svg><use href="#i-play"/></svg><span>Запустить</span></button><p class="control-hint" id="run-hint">Окно можно закрыть.<br>Работа продолжится в фоне.</p></section><section class="notice"><span class="notice-icon">i</span><div><strong>Первый запуск?</strong><p>Полностью выйди из Discord через Quit. Программа откроет клиент с нужными параметрами.</p></div></section><p class="compatibility-note" id="compatibility-note">Зачёт времени зависит от Discord. Награды забираются вручную.</p></aside></div>
+ </section>
+ <section data-view="settings" hidden>
+ <div class="panel settings-panel"><div class="panel-heading"><div><h2>Клиент Discord</h2><p>Обычно программа находит его автоматически</p></div></div><label class="field">Способ запуска<select id="client-select"><option value="">Найти автоматически — рекомендуется</option><option value="__manual__">Указать путь вручную</option></select></label><div id="manual-path" hidden><label class="field">Путь к исполняемому файлу<input name="discordPath" placeholder="Например: C:\Users\…\Discord.exe или /usr/bin/discord" spellcheck="false"></label></div><p class="field-hint" id="discovery-hint">Проверяем обычную установку, PTB и Canary.</p><button class="secondary-button" id="rescan-settings" type="button"><svg><use href="#i-refresh"/></svg>Проверить ещё раз</button></div>
+diff --git a/app/quests.mjs b/app/quests.mjs
+index df1e2e9..add4687 100644
+--- a/app/quests.mjs
++++ b/app/quests.mjs
+@@ -1,6 +1,6 @@
+-import { spawn } from 'node:child_process';
++import { spawn, execFile } from 'node:child_process';
+ import { copyFile, mkdir, chmod } from 'node:fs/promises';
+-import { dirname, join, resolve } from 'node:path';
++import { basename, dirname, join, resolve } from 'node:path';
+ import { fileURLToPath } from 'node:url';
+ import { setTimeout as delay } from 'node:timers/promises';
+ 
+@@ -177,7 +177,54 @@ async function request(method, url, body) {
+     return response.body;
+ }
+ 
++// Returns { open, tabs } for the debugging endpoint.
++async function probe() {
++    try {
++        const response = await fetch(`${endpoint}/json/list`, { signal: AbortSignal.timeout(2000) });
++        return { open: true, tabs: await response.json() };
++    } catch { return { open: false, tabs: [] }; }
++}
++const discordTab = tabs => tabs.find(t => t.type === 'page' && /^https:\/\/(?:canary\.|ptb\.)?discord\.com\/(?:channels|app|quest-home|store|shop|discovery)(?:[/?#]|$)/.test(t.url));
++
++function runningImages(names) {
++    return new Promise(resolveList => {
++        if (process.platform !== 'win32') {
++            execFile('ps', ['-eo', 'comm='], { timeout: 4000 }, (error, stdout) =>
++                resolveList(error ? [] : names.filter(n => stdout.split('\n').some(l => l.trim() === n))));
++            return;
++        }
++        execFile('tasklist', ['/FO', 'CSV', '/NH'], { timeout: 6000, windowsHide: true }, (error, stdout) => {
++            if (error) return resolveList([]);
++            const running = new Set(stdout.split(/\r?\n/).map(line => line.split('","')[0]?.replace(/^"/, '').toLowerCase()));
++            resolveList(names.filter(n => running.has(n.toLowerCase())));
++        });
++    });
++}
++function killImage(name) {
++    return new Promise(done => {
++        const [cmd, args] = process.platform === 'win32' ? ['taskkill', ['/IM', name, '/T', '/F']] : ['pkill', ['-x', name]];
++        execFile(cmd, args, { timeout: 10000, windowsHide: true }, () => done());
++    });
++}
++
+ async function attach(launch) {
++    // Discord may already be running with the debugging port from an earlier start.
++    const initial = await probe();
++    if (initial.open && discordTab(initial.tabs)?.webSocketDebuggerUrl) return CDP.connect(discordTab(initial.tabs).webSocketDebuggerUrl);
++    if (launch && !initial.open) {
++        const selected = await resolveDiscord(settings);
++        if (selected.kind === 'native') {
++            const image = basename(selected.command);
++            const running = await runningImages([image]);
++            if (running.length) {
++                if (!settings.restartDiscord) throw new Error(`${image} уже запущен без отладочного порта. Закрой Discord через трей → Quit или включи «Перезапускать Discord» в настройках.`);
++                log(`${image} уже открыт без порта ${port} — перезапускаю его с нужными параметрами.`);
++                await killImage(image);
++                for (let i = 0; i < 20 && (await runningImages([image])).length; i++) await pause(500);
++                await pause(1500);
++            }
++        }
++    }
+     if (launch) {
+         const args = [`--remote-debugging-port=${port}`, '--remote-debugging-address=127.0.0.1'];
+         // Keep Discord outside the helper's service cgroup: stopping the helper
+@@ -192,16 +239,18 @@ async function attach(launch) {
+         app.on('error', () => log('Не удалось запустить Discord. Проверь путь в настройках.'));
+         app.unref();
+     }
+-    for (let i = 0; i < (launch ? 30 : 1) && !stopping; i++) {
+-        try {
+-            const response = await fetch(`${endpoint}/json/list`, { signal: AbortSignal.timeout(2000) });
+-            const tabs = await response.json();
+-            const tab = tabs.find(t => t.type === 'page' && /^https:\/\/(?:canary\.|ptb\.)?discord\.com\/(?:channels|app|quest-home)(?:[/?#]|$)/.test(t.url));
+-            if (tab?.webSocketDebuggerUrl) return CDP.connect(tab.webSocketDebuggerUrl);
+-        } catch { /* Discord may still be starting. */ }
++    let last = { open: false, tabs: [] };
++    for (let i = 0; i < (launch ? 60 : 1) && !stopping; i++) {
++        last = await probe();
++        const tab = discordTab(last.tabs);
++        if (tab?.webSocketDebuggerUrl) return CDP.connect(tab.webSocketDebuggerUrl);
+         await pause(1000);
+     }
+-    throw new Error(`Не удалось подключиться. Полностью закрой Discord через Quit и повторно включи выполнение в настройках. Войди в аккаунт, если нужно. Порт: ${port}.`);
++    if (last.open) {
++        const urls = last.tabs.filter(t => t.type === 'page').map(t => t.url.replace(/[?#].*$/, '')).join(', ') || 'нет страниц';
++        throw new Error(`Порт ${port} открыт, но главное окно Discord не найдено (страницы: ${urls}). Войди в аккаунт и дождись загрузки.`);
++    }
++    throw new Error(`Порт ${port} так и не открылся. Discord запущен без отладочного режима: закрой его через трей → Quit (или включи «Перезапускать Discord») и запусти снова.`);
+ }
+ 
+ async function waitForDiscord() {
+diff --git a/assets/kernel32.def b/assets/kernel32.def
+index e932534..26c601e 100644
+--- a/assets/kernel32.def
++++ b/assets/kernel32.def
+@@ -1,3 +1,5 @@
+ LIBRARY KERNEL32.dll
+ EXPORTS
+-Sleep
++GetModuleHandleW
++GetModuleFileNameW
++ExitProcess
+diff --git a/assets/runner-win.c b/assets/runner-win.c
+index 74761fd..913f85d 100644
+--- a/assets/runner-win.c
++++ b/assets/runner-win.c
+@@ -1,5 +1,65 @@
+-/* Minimal native Windows runner. No network, credentials, or persistence. */
+-__declspec(dllimport) void __stdcall Sleep(unsigned long milliseconds);
++/* Minimal native Windows runner. No network, credentials, or persistence.
++ * Discord's game detection on Windows ignores windowless background processes,
++ * so the runner owns a small top-level window (shown minimized, no focus steal)
++ * titled with its own executable name, and pumps messages until it is closed. */
++typedef unsigned short wchar;
++typedef void *HANDLE;
++typedef HANDLE HWND, HINSTANCE, HICON, HCURSOR, HBRUSH, HMENU;
++typedef unsigned int UINT;
++typedef unsigned long DWORD;
++typedef long long LONG_PTR;
++typedef unsigned long long UINT_PTR;
++typedef LONG_PTR LRESULT, LPARAM;
++typedef UINT_PTR WPARAM;
++typedef LRESULT (__stdcall *WNDPROC)(HWND, UINT, WPARAM, LPARAM);
++
++typedef struct { UINT style; WNDPROC proc; int cls; int wnd; HINSTANCE inst; HICON icon;
++    HCURSOR cursor; HBRUSH background; const wchar *menu; const wchar *name; } WNDCLASSW;
++typedef struct { long x, y; } POINT;
++typedef struct { HWND hwnd; UINT message; WPARAM w; LPARAM l; DWORD time; POINT pt; DWORD priv; } MSG;
++
++__declspec(dllimport) HINSTANCE __stdcall GetModuleHandleW(const wchar *);
++__declspec(dllimport) DWORD __stdcall GetModuleFileNameW(HINSTANCE, wchar *, DWORD);
++__declspec(dllimport) void __stdcall ExitProcess(UINT);
++__declspec(dllimport) unsigned short __stdcall RegisterClassW(const WNDCLASSW *);
++__declspec(dllimport) HWND __stdcall CreateWindowExW(DWORD, const wchar *, const wchar *, DWORD,
++    int, int, int, int, HWND, HMENU, HINSTANCE, void *);
++__declspec(dllimport) int __stdcall ShowWindow(HWND, int);
++__declspec(dllimport) int __stdcall GetMessageW(MSG *, HWND, UINT, UINT);
++__declspec(dllimport) int __stdcall TranslateMessage(const MSG *);
++__declspec(dllimport) LRESULT __stdcall DispatchMessageW(const MSG *);
++__declspec(dllimport) LRESULT __stdcall DefWindowProcW(HWND, UINT, WPARAM, LPARAM);
++__declspec(dllimport) void __stdcall PostQuitMessage(int);
++
++#define WM_DESTROY 0x0002
++#define WS_OVERLAPPEDWINDOW 0x00CF0000
++#define SW_SHOWMINNOACTIVE 7
++#define CW_USEDEFAULT ((int)0x80000000)
++
++static LRESULT __stdcall proc(HWND hwnd, UINT message, WPARAM w, LPARAM l) {
++    if (message == WM_DESTROY) { PostQuitMessage(0); return 0; }
++    return DefWindowProcW(hwnd, message, w, l);
++}
++
+ void mainCRTStartup(void) {
+-    for (;;) Sleep(60000);
++    static const wchar className[] = { 'Q','u','e','s','t','R','u','n','n','e','r',0 };
++    static wchar path[1024];
++    HINSTANCE inst = GetModuleHandleW(0);
++    DWORD n = GetModuleFileNameW(0, path, 1024);
++    const wchar *title = path;
++    for (DWORD i = 0; i < n; i++) if (path[i] == '\\' || path[i] == '/') title = path + i + 1;
++
++    static WNDCLASSW wc;
++    wc.proc = proc;
++    wc.inst = inst;
++    wc.background = (HBRUSH)(UINT_PTR)6; /* COLOR_WINDOW + 1 */
++    wc.name = className;
++    RegisterClassW(&wc);
++    HWND hwnd = CreateWindowExW(0, className, title, WS_OVERLAPPEDWINDOW,
++        CW_USEDEFAULT, CW_USEDEFAULT, 360, 120, 0, 0, inst, 0);
++    if (hwnd) ShowWindow(hwnd, SW_SHOWMINNOACTIVE);
++
++    static MSG msg;
++    while (GetMessageW(&msg, 0, 0, 0) > 0) { TranslateMessage(&msg); DispatchMessageW(&msg); }
++    ExitProcess(0);
+ }
+diff --git a/assets/user32.def b/assets/user32.def
+new file mode 100644
+index 0000000..1cc2699
+--- /dev/null
++++ b/assets/user32.def
+@@ -0,0 +1,10 @@
++LIBRARY USER32.dll
++EXPORTS
++RegisterClassW
++CreateWindowExW
++ShowWindow
++GetMessageW
++TranslateMessage
++DispatchMessageW
++DefWindowProcW
++PostQuitMessage
+diff --git a/docs/RELEASE_NOTES.md b/docs/RELEASE_NOTES.md
+index 1413ef3..e3cc411 100644
+--- a/docs/RELEASE_NOTES.md
++++ b/docs/RELEASE_NOTES.md
+@@ -1,5 +1,17 @@
+ ## English
+ 
++**v0.2.1:** Windows fixes.
++- Play quests are now actually credited on Windows: the native runner owns a small
++  minimized window titled with the game executable. Discord's game detection ignored
++  the previous windowless runner, so quests were accepted but stayed at 0:00.
++- Connecting works when Discord is already running: the helper checks the debugging
++  port first and, if Discord is open without it, restarts the client with the right
++  flags (new **Restart Discord** setting, on by default).
++- Clearer connection errors: "port never opened" vs "port open, main window not found"
++  (with the page list).
++- The panel opens as a standalone app window (Edge/Chrome `--app`, separate profile)
++  instead of a browser tab.
++
+ **v0.2.0:** new dark dashboard with quest cards and real progress, searchable
+ activity log, automatic Discord discovery on both platforms, client selection,
+ and manual fallback. Windows stable/PTB/Canary and Linux native/Snap/Flatpak
+@@ -11,11 +23,23 @@ Extract the ZIP and open `Install.vbs` (Windows) or `Install.sh` (Linux).
+ Portable launchers are included. Execution and startup are off by default.
+ 
+ The README includes screenshots, setup, privacy details, and compatibility limits.
+-Native runner checks run on both platforms. Actual Windows quest completion has
+-not been validated. Rewards are claimed manually; Linux credit is not guaranteed.
++Native runner checks run on both platforms. Windows quest credit was confirmed on
++v0.2.1. Rewards are claimed manually; Linux credit is not guaranteed.
+ 
+ ## Русский
+ 
++**v0.2.1:** исправления для Windows.
++- Квесты на игру теперь реально засчитываются на Windows: runner открывает маленькое
++  свёрнутое окно с именем exe игры. Прежний runner без окна детектор игр Discord
++  не видел, поэтому квесты принимались, но висели на 0:00.
++- Подключение работает, даже если Discord уже открыт: программа сначала проверяет
++  отладочный порт и при необходимости перезапускает клиент с нужными параметрами
++  (новая настройка «Перезапускать Discord», включена по умолчанию).
++- Понятные ошибки подключения: «порт не открылся» или «порт открыт, но главное окно
++  не найдено» (со списком страниц).
++- Панель открывается отдельным окном (Edge/Chrome в режиме приложения, свой профиль),
++  а не вкладкой браузера.
++
+ **v0.2.0:** новая тёмная панель с карточками и реальным прогрессом квестов,
+ поиск по журналу, автоматический поиск Discord на Windows и Linux, выбор клиента
+ и ручной путь. Windows: stable/PTB/Canary; Linux: обычные установки, Snap и Flatpak.
+@@ -28,5 +52,5 @@ not been validated. Rewards are claimed manually; Linux credit is not guaranteed
+ Есть запуск без установки. Выполнение и автозапуск изначально выключены.
+ 
+ В README — скриншоты, инструкция, сведения о данных и ограничения.
+-Запуск runner проверяется на обеих платформах. Реальное выполнение квестов
+-Windows ещё не проверено. Награды забираются вручную; зачёт на Linux не гарантируется.
++Запуск runner проверяется на обеих платформах. Зачёт квестов на Windows
++подтверждён в v0.2.1. Награды забираются вручную; зачёт на Linux не гарантируется.
+diff --git a/package.json b/package.json
+index b63c8af..250dee8 100644
+--- a/package.json
++++ b/package.json
+@@ -1,6 +1,6 @@
+ {
+   "name": "discord-quest-auto",
+-  "version": "0.2.0",
++  "version": "0.2.1",
+   "private": true,
+   "type": "module",
+   "license": "MIT",

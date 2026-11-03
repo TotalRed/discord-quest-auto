@@ -1,3 +1,5 @@
 LIBRARY KERNEL32.dll
 EXPORTS
-Sleep
+GetModuleHandleW
+GetModuleFileNameW
+ExitProcess

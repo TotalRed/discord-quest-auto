@@ -9,11 +9,11 @@ export const dataDir = process.env.QUEST_AUTO_DATA_DIR || (process.platform === 
     : join(process.env.XDG_DATA_HOME || join(homedir(), '.local', 'share'), 'discord-quest-auto'));
 export const settingsPath = join(dataDir, 'settings.json');
 export const defaults = Object.freeze({ discordPath: '', port: 9237, scanSeconds: 60,
-    stallSeconds: 600, retrySeconds: 900, autostart: false, enabled: false });
+    stallSeconds: 600, retrySeconds: 900, autostart: false, enabled: false, restartDiscord: true });
 
 export function validateSettings(input) {
     const result = {};
-    for (const key of ['enabled', 'autostart']) {
+    for (const key of ['enabled', 'autostart', 'restartDiscord']) {
         const value = input[key] ?? defaults[key];
         if (typeof value !== 'boolean') throw new Error(`${key}: требуется true или false`);
         result[key] = value;

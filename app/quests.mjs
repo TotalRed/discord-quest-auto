@@ -1,6 +1,6 @@
-import { spawn } from 'node:child_process';
+import { spawn, execFile } from 'node:child_process';
 import { copyFile, mkdir, chmod } from 'node:fs/promises';
-import { dirname, join, resolve } from 'node:path';
+import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { setTimeout as delay } from 'node:timers/promises';
 
@@ -177,7 +177,54 @@ async function request(method, url, body) {
     return response.body;
 }
 
+// Returns { open, tabs } for the debugging endpoint.
+async function probe() {
+    try {
+        const response = await fetch(`${endpoint}/json/list`, { signal: AbortSignal.timeout(2000) });
+        return { open: true, tabs: await response.json() };
+    } catch { return { open: false, tabs: [] }; }
+}
+const discordTab = tabs => tabs.find(t => t.type === 'page' && /^https:\/\/(?:canary\.|ptb\.)?discord\.com\/(?:channels|app|quest-home|store|shop|discovery)(?:[/?#]|$)/.test(t.url));
+
+function runningImages(names) {
+    return new Promise(resolveList => {
+        if (process.platform !== 'win32') {
+            execFile('ps', ['-eo', 'comm='], { timeout: 4000 }, (error, stdout) =>
+                resolveList(error ? [] : names.filter(n => stdout.split('\n').some(l => l.trim() === n))));
+            return;
+        }
+        execFile('tasklist', ['/FO', 'CSV', '/NH'], { timeout: 6000, windowsHide: true }, (error, stdout) => {
+            if (error) return resolveList([]);
+            const running = new Set(stdout.split(/\r?\n/).map(line => line.split('","')[0]?.replace(/^"/, '').toLowerCase()));
+            resolveList(names.filter(n => running.has(n.toLowerCase())));
+        });
+    });
+}
+function killImage(name) {
+    return new Promise(done => {
+        const [cmd, args] = process.platform === 'win32' ? ['taskkill', ['/IM', name, '/T', '/F']] : ['pkill', ['-x', name]];
+        execFile(cmd, args, { timeout: 10000, windowsHide: true }, () => done());
+    });
+}
+
 async function attach(launch) {
+    // Discord may already be running with the debugging port from an earlier start.
+    const initial = await probe();
+    if (initial.open && discordTab(initial.tabs)?.webSocketDebuggerUrl) return CDP.connect(discordTab(initial.tabs).webSocketDebuggerUrl);
+    if (launch && !initial.open) {
+        const selected = await resolveDiscord(settings);
+        if (selected.kind === 'native') {
+            const image = basename(selected.command);
+            const running = await runningImages([image]);
+            if (running.length) {
+                if (!settings.restartDiscord) throw new Error(`${image} уже запущен без отладочного порта. Закрой Discord через трей → Quit или включи «Перезапускать Discord» в настройках.`);
+                log(`${image} уже открыт без порта ${port} — перезапускаю его с нужными параметрами.`);
+                await killImage(image);
+                for (let i = 0; i < 20 && (await runningImages([image])).length; i++) await pause(500);
+                await pause(1500);
+            }
+        }
+    }
     if (launch) {
         const args = [`--remote-debugging-port=${port}`, '--remote-debugging-address=127.0.0.1'];
         // Keep Discord outside the helper's service cgroup: stopping the helper
@@ -192,16 +239,18 @@ async function attach(launch) {
         app.on('error', () => log('Не удалось запустить Discord. Проверь путь в настройках.'));
         app.unref();
     }
-    for (let i = 0; i < (launch ? 30 : 1) && !stopping; i++) {
-        try {
-            const response = await fetch(`${endpoint}/json/list`, { signal: AbortSignal.timeout(2000) });
-            const tabs = await response.json();
-            const tab = tabs.find(t => t.type === 'page' && /^https:\/\/(?:canary\.|ptb\.)?discord\.com\/(?:channels|app|quest-home)(?:[/?#]|$)/.test(t.url));
-            if (tab?.webSocketDebuggerUrl) return CDP.connect(tab.webSocketDebuggerUrl);
-        } catch { /* Discord may still be starting. */ }
+    let last = { open: false, tabs: [] };
+    for (let i = 0; i < (launch ? 60 : 1) && !stopping; i++) {
+        last = await probe();
+        const tab = discordTab(last.tabs);
+        if (tab?.webSocketDebuggerUrl) return CDP.connect(tab.webSocketDebuggerUrl);
         await pause(1000);
     }
-    throw new Error(`Не удалось подключиться. Полностью закрой Discord через Quit и повторно включи выполнение в настройках. Войди в аккаунт, если нужно. Порт: ${port}.`);
+    if (last.open) {
+        const urls = last.tabs.filter(t => t.type === 'page').map(t => t.url.replace(/[?#].*$/, '')).join(', ') || 'нет страниц';
+        throw new Error(`Порт ${port} открыт, но главное окно Discord не найдено (страницы: ${urls}). Войди в аккаунт и дождись загрузки.`);
+    }
+    throw new Error(`Порт ${port} так и не открылся. Discord запущен без отладочного режима: закрой его через трей → Quit (или включи «Перезапускать Discord») и запусти снова.`);
 }
 
 async function waitForDiscord() {

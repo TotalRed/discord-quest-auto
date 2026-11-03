@@ -18,9 +18,10 @@ jobs:
       - name: Build native runners
         run: |
           rustc assets/runner-linux.rs -O -C target-feature=+crt-static -C strip=symbols -o assets/runner-linux
-          clang --target=x86_64-pc-windows-msvc -c -Oz -fno-stack-protector -o /tmp/runner.obj assets/runner-win.c
+          clang --target=x86_64-pc-windows-msvc -c -Oz -fno-stack-protector -fno-builtin -o /tmp/runner.obj assets/runner-win.c
           llvm-dlltool -m i386:x86-64 -d assets/kernel32.def -l /tmp/kernel32.lib
-          lld-link /entry:mainCRTStartup /subsystem:windows /nodefaultlib /out:assets/runner-win.exe /tmp/runner.obj /tmp/kernel32.lib
+          llvm-dlltool -m i386:x86-64 -d assets/user32.def -l /tmp/user32.lib
+          lld-link /entry:mainCRTStartup /subsystem:windows /nodefaultlib /out:assets/runner-win.exe /tmp/runner.obj /tmp/kernel32.lib /tmp/user32.lib
       - run: node --test tests/*.test.mjs
       - run: node scripts/download-runtime.mjs
       - run: node scripts/package.mjs linux runtime/linux/node

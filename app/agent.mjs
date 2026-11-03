@@ -3,6 +3,7 @@ import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { spawn, fork } from 'node:child_process';
 import { mkdir, readFile, writeFile, unlink, open } from 'node:fs/promises';
 import { join } from 'node:path';
+import { existsSync } from 'node:fs';
 import { dataDir, root, loadSettings, saveSettings } from './config.mjs';
 import { setAutostart } from './autostart.mjs';
 import { discoverDiscord } from './discord.mjs';
@@ -32,7 +33,29 @@ async function clients(force = false) {
     return discovery;
 }
 
+// Open the panel as a standalone app window (Edge/Chrome --app mode, own profile),
+// falling back to the default browser.
+function appBrowser() {
+    const env = process.env;
+    const candidates = process.platform === 'win32' ? [
+        [env['ProgramFiles(x86)'], 'Microsoft', 'Edge', 'Application', 'msedge.exe'],
+        [env.ProgramFiles, 'Microsoft', 'Edge', 'Application', 'msedge.exe'],
+        [env.ProgramFiles, 'Google', 'Chrome', 'Application', 'chrome.exe'],
+        [env.LOCALAPPDATA, 'Google', 'Chrome', 'Application', 'chrome.exe'],
+    ].filter(parts => parts[0]).map(parts => join(...parts)) :
+        ['/usr/bin/microsoft-edge', '/usr/bin/google-chrome', '/usr/bin/chromium', '/usr/bin/chromium-browser'];
+    return candidates.find(path => existsSync(path));
+}
 function openBrowser(url) {
+    const browser = appBrowser();
+    if (!browser) return openDefaultBrowser(url);
+    const child = spawn(browser, [`--app=${url}`, `--user-data-dir=${join(dataDir, 'window-profile')}`,
+        '--window-size=1180,800', '--no-first-run', '--no-default-browser-check', '--disable-extensions'],
+    { detached: true, stdio: 'ignore' });
+    child.on('error', () => openDefaultBrowser(url));
+    child.unref();
+}
+function openDefaultBrowser(url) {
     const child = process.platform === 'win32'
         ? spawn('rundll32.exe', ['url.dll,FileProtocolHandler', url], { detached: true, stdio: 'ignore', windowsHide: true })
         : spawn('xdg-open', [url], { detached: true, stdio: 'ignore' });

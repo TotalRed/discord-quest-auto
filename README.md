@@ -47,11 +47,14 @@ Use **Find Discord** to rescan; settings also offer a client selector and manual
 Flatpak isolation may prevent game detection. Windows Store installs may require a custom path.
 Vesktop has not been validated.
 
-1. Fully quit Discord through its tray/menu **Quit** action before first use.
-2. Open Discord Quest Auto. Settings open in your browser on a local address.
+1. If Discord is already running without the debugging port, the helper restarts it
+   with the right flags (**Restart Discord** toggle, on by default; this drops voice calls).
+   With the toggle off, fully quit Discord through its tray/menu **Quit** action first.
+2. Open Discord Quest Auto. The panel opens as a standalone window (Edge/Chrome app mode,
+   no address bar), falling back to the default browser.
 3. The detected client appears on the overview. Usually no path entry is needed.
 4. Click Start, or enable background execution and save. Optionally enable startup when signing in.
-5. Close the settings tab whenever you like; the agent keeps running.
+5. Close the panel window whenever you like; the agent keeps running.
 
 Execution and startup are **off by default**. Reopen the shortcut to view logs or
 change settings. To stop processing, disable execution and save. Claim rewards
