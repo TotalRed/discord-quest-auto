@@ -8,7 +8,7 @@ import { desktopQuote } from '../app/autostart.mjs';
 const target = join(dataDir, 'program');
 if (root === target) throw new Error('Программа уже установлена. Открой ярлык Discord Quest Auto.');
 await mkdir(target, { recursive: true });
-const files = ['app', 'assets', 'runtime', 'scripts', 'README.md', 'LICENSE', 'THIRD_PARTY_NOTICES.md'];
+const files = ['app', 'assets', 'runtime', 'scripts', 'docs', 'README.md', 'README.ru.md', 'LICENSE', 'THIRD_PARTY_NOTICES.md'];
 for (const file of files) await cp(join(root, file), join(target, file), { recursive: true });
 const node = join(target, 'runtime', process.platform === 'win32' ? 'node.exe' : 'node');
 if (process.platform === 'win32') {

@@ -51,9 +51,9 @@ test('selects an eligible alternative when the primary game has no runner', () =
         { id: '222', name: 'Windows alternative', executables: [{ os: 'win32', name: 'game.exe' }] },
         { id: '333', name: 'Linux alternative', executables: [{ os: 'linux', name: 'bin/game' }] },
     ];
-    assert.equal(selectQuestRunner(normalized, games).appId, '333');
-    assert.equal(selectQuestRunner(normalized, games.slice(0, 1)).appId, '222');
-    assert.equal(selectQuestRunner(normalized, []), undefined);
+    assert.equal(selectQuestRunner(normalized, games, 'linux').appId, '333');
+    assert.equal(selectQuestRunner(normalized, games.slice(0, 1), 'linux').appId, '222');
+    assert.equal(selectQuestRunner(normalized, [], 'linux'), undefined);
 });
 
 test('never selects games outside the eligible list or unsafe paths', () => {

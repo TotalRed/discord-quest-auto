@@ -12,7 +12,7 @@ const folder = join(output, name);
 await rm(folder, { recursive: true, force: true });
 await mkdir(join(folder, 'runtime'), { recursive: true });
 await mkdir(join(folder, 'assets'), { recursive: true });
-for (const entry of ['app', 'scripts', 'README.md', 'LICENSE', 'THIRD_PARTY_NOTICES.md']) await cp(join(root, entry), join(folder, entry), { recursive: true });
+for (const entry of ['app', 'scripts', 'docs', 'README.md', 'README.ru.md', 'LICENSE', 'THIRD_PARTY_NOTICES.md']) await cp(join(root, entry), join(folder, entry), { recursive: true });
 const runner = platform === 'windows' ? 'runner-win.exe' : 'runner-linux';
 await copyFile(join(root, 'assets', runner), join(folder, 'assets', runner));
 await copyFile(resolve(nodeBinary), join(folder, 'runtime', platform === 'windows' ? 'node.exe' : 'node'));

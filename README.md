@@ -1,92 +1,133 @@
 # Discord Quest Auto
 
-Фоновый помощник для **Windows x64 и Linux x64**. Находит доступные квесты
-Discord на запуск игры, принимает их и запускает небольшие нативные процессы
-с именами из справочника Discord. Полные игры не устанавливаются.
+**A background Discord play-quest helper for Windows and Linux, with local settings and optional login startup.**
 
-Проект основан на идее [Discord Quest Completer](https://github.com/markterence/discord-quest-completer).
-Это не продукт Discord. Зачёт времени и доступность наград определяются Discord.
+[Русская инструкция](README.ru.md) · [Download ZIP archives](https://github.com/hikkakirishima-sys/discord-quest-auto/releases) · [Build checks](https://github.com/hikkakirishima-sys/discord-quest-auto/actions)
 
-## Установка из архива
+Discover eligible play quests, accept them, and launch lightweight native processes
+using executable names from Discord’s application database. Full games are not
+installed. Completion is confirmed using progress reported by Discord.
 
-Скачай ZIP своей платформы из Releases и **полностью распакуй**.
+Built with **Node.js, HTML/CSS/JavaScript, Rust (Linux runner), and C (Windows runner)**.
+No npm dependencies. Downloads include the runtime and runner.
+Inspired by [Discord Quest Completer](https://github.com/markterence/discord-quest-completer).
+This project is independent of Discord.
 
-- **Windows:** открой `Install.vbs`. Появится ярлык Discord Quest Auto в меню Пуск.
-  `Start.vbs` позволяет запустить без установки из распакованной папки.
-- **Linux:** запусти `Install.sh`. Появится пункт Discord Quest Auto в меню приложений.
-  Для запуска без установки — `Start.sh`.
+## Screenshots
 
-Пакеты содержат Node.js и готовый runner: ставить Node.js, Rust или библиотеки
-проекта отдельно не нужно. Linux: нужен glibc 2.28+, xdg-open и обычный Discord.
-Windows: обычный Discord с сайта Discord; для Store / PTB / Canary может
-потребоваться вручную выбрать путь к exe. Vesktop не тестировался.
+These show the real interface with a **demo data source**. Progress is illustrative;
+no Discord account, control key, or personal data is shown. The current UI is in Russian.
 
-В браузере откроется **локальное окно настроек**. Перед первым включением
-полностью выйди из Discord через Quit, чтобы он запустился с локальным
-отладочным портом. В настройках укажи путь к Discord, если автопоиск не сработал,
-и включи «Выполнять подходящие квесты в фоне». По желанию включи автозапуск.
-Устанавливается для текущего пользователя, права администратора не нужны.
+**Settings: client path, timings, execution, and login startup**
 
-Окно можно закрыть: работа продолжится. Повторное открытие ярлыка показывает
-настройки и лог текущего экземпляра. Для остановки выключи выполнение в настройках.
-При переносе портативной папки выключи и заново включи автозапуск.
+![Settings using a clean demo profile](docs/screenshots/settings.png)
 
-## Что поддерживается
+**Status: parallel quests and progress logs**
 
-- `PLAY_ON_DESKTOP`, включая выбор любой игры из списка.
-- Альтернативы PC / Xbox / PlayStation с условием OR.
-- Параллельные квесты; задания одной игры используют общий процесс.
-- Новые квесты проверяются каждую минуту, без ожидания завершения текущих.
-- Фактический прогресс читается из Discord каждые 15 секунд. При отсутствии
-  прогресса 10 минут процесс останавливается; повтор через 15 минут.
-- Настройки интервалов, клиента и автозапуска для обеих платформ.
+![Status with clearly marked demonstration progress](docs/screenshots/status.png)
 
-Видео, стримы, сложные задания и квесты с обязательными несколькими действиями
-не поддерживаются. Получение наград выполняется вручную в Discord.
-Квесты без подходящих executable в справочнике пропускаются (например, некоторые
-варианты Firefox). Не все параллельные задания получают время одновременно.
+## Install
 
-Discord [официально не поддерживает награды на Linux](https://support.discord.com/hc/en-us/articles/22225719947543-Discord-Quests-FAQ).
-Успех определяется ответом Discord, а не отображением активности. Внутренние
-API клиента могут измениться. Windows-порт собран, но полноценное прохождение
-квестов на Windows ещё не подтверждено; версия 0.1.0 предварительная.
+Download your platform’s ZIP from [Releases](https://github.com/hikkakirishima-sys/discord-quest-auto/releases) and **extract the entire archive**.
 
-## Данные и доступ к клиенту
+| Platform | Install | Run without installing |
+| --- | --- | --- |
+| Windows x64 | Double-click `Install.vbs`; use the Start menu shortcut | Double-click `Start.vbs` |
+| Linux x64 | Run `Install.sh`; use the application menu shortcut | Run `Start.sh` |
 
-Пароль и Discord-токен не запрашиваются, не извлекаются и не сохраняются.
-Запросы выполняет существующий HTTP-клиент в открытой сессии Discord.
-Локальный отладочный порт даёт другим приложениям на компьютере доступ к клиенту;
-не публикуй его в сеть. Для его отключения полностью выйди из Discord и запусти
-Discord обычным способом.
+No administrator access or separate Node.js/Rust installation is required.
+Linux needs glibc 2.28+, `xdg-open`, and the regular Discord desktop client.
+Windows uses regular Discord; Store/PTB/Canary may need a custom executable path.
+Vesktop has not been validated.
 
-Настройки, локальный ключ управления и логи сохраняются только у пользователя:
+1. Fully quit Discord through its tray/menu **Quit** action before first use.
+2. Open Discord Quest Auto. Settings open in your browser on a local address.
+3. Leave the Discord path empty for automatic detection, or enter its executable path.
+4. Enable background execution and save. Optionally enable startup when signing in.
+5. Close the settings tab whenever you like; the agent keeps running.
 
-- Windows: `%LOCALAPPDATA%\DiscordQuestAuto`.
-- Linux: `$XDG_DATA_HOME/discord-quest-auto`, обычно `~/.local/share/discord-quest-auto`.
+Execution and startup are **off by default**. Reopen the shortcut to view logs or
+change settings. To stop processing, disable execution and save. Claim rewards
+manually inside Discord.
 
-Ключ управления защищает локальное окно настроек и не является токеном Discord.
-Исходники и архивы содержат только программу. Локальные настройки, логи, квесты,
-профили Discord и ключи управления в релиз не включаются.
+## How it works
 
-## Удаление
+Discord starts with a loopback-only debugging port. The helper uses the HTTP
+client already present in that signed-in desktop session to read and accept
+supported quests, then launches a small native runner under a registered
+executable name. It monitors actual progress reported by Discord.
 
-Выключи выполнение и автозапуск в настройках, затем удали установленную папку
-`program` из каталога данных выше и ярлык в меню приложений / меню Пуск.
-Оставшиеся настройки и логи можно удалить вместе с каталогом данных.
+| Behavior | Default |
+| --- | --- |
+| Discover new quests, including while others run | Every 60 seconds |
+| Read progress | Every 15 seconds |
+| Stop a runner without new progress | After 10 minutes |
+| Retry failed attempts | After 15 minutes |
+| Refresh the application database | Every hour |
+| Concurrent quests | No helper-imposed limit; Discord determines credit |
 
-## Разработка
+Quests for the same application share a runner. Any-game quests select one eligible
+game from the entire list. Client path, timings, debugging port, execution, and
+startup are configurable.
 
-Node.js 22.15+, без npm-зависимостей. Проверки: `node --test tests/*.test.mjs`.
-Собери runner для своей платформы, затем `node app/agent.mjs --ui`.
-По умолчанию выполнение и автозапуск выключены.
+## Compatibility and limits
 
-Linux runner: `rustc assets/runner-linux.rs -O -C target-feature=+crt-static -o assets/runner-linux`.
-Windows runner: `clang --target=x86_64-pc-windows-msvc -c -Oz -fno-stack-protector -o runner.obj assets/runner-win.c`,
-затем `llvm-dlltool -m i386:x86-64 -d assets/kernel32.def -l kernel32.lib` и
-`lld-link /entry:mainCRTStartup /subsystem:windows /nodefaultlib /out:assets/runner-win.exe runner.obj kernel32.lib`.
+- Supports `PLAY_ON_DESKTOP`, any-game lists, and PC/console alternatives joined by OR.
+- Video, streaming, account linking, and mandatory multi-step AND quests are skipped.
+- Entries without suitable executables are skipped, including some Firefox quests.
+- Process activity does **not** guarantee quest credit. Parallel quests may receive different credit.
+- Rewards must be claimed in Discord. No automatic CAPTCHA or reward claiming.
+- Discord [officially does not support earning rewards on Linux](https://support.discord.com/hc/en-us/articles/22225719947543-Discord-Quests-FAQ).
+- Internal APIs may change. This is a **preview release**. Native process checks do not establish successful completion of real Windows quests.
 
-Упаковка: `node scripts/package.mjs linux|windows /path/to/node`.
-До упаковки положи лицензию этой версии Node в `runtime/NODE-LICENSE`.
-Официальный runtime проверяется по SHA-256 перед включением в архив.
+## Privacy and local access
 
-MIT. Сохранены исходная лицензия и сведения об авторе upstream.
+The helper does not request, extract, or save a Discord password or account token.
+It uses the existing client session. Settings, a separate local control key, and
+logs stay in the user profile:
+
+| Platform | Data directory |
+| --- | --- |
+| Windows | `%LOCALAPPDATA%/DiscordQuestAuto` |
+| Linux | `$XDG_DATA_HOME/discord-quest-auto`, usually `~/.local/share/discord-quest-auto` |
+
+The local settings server requires its own random control key. The debugging port
+gives other applications on the computer access to Discord; do not expose it to
+a network. To disable the port, fully quit Discord and start Discord normally.
+
+Source and release archives exclude settings, keys, logs, and Discord profiles.
+Release inputs and Git history were scanned for secrets. Official bundled Node.js
+binaries are checked against SHA-256 checksums before packaging.
+
+## Uninstall
+
+Disable execution and startup in settings. Remove the `program` folder from the
+data directory and the application/Start menu shortcut. Delete the data directory
+to remove remaining logs and settings. When moving a portable folder, disable and
+re-enable startup to update its stored paths.
+
+## Development
+
+Node.js 22.15+, no npm dependencies. Build the native runner before testing:
+
+```sh
+rustc assets/runner-linux.rs -O -C target-feature=+crt-static -C strip=symbols -o assets/runner-linux
+node --test tests/*.test.mjs
+node app/agent.mjs --ui
+```
+
+The release workflow builds both archives and checks native runners on Linux and
+Windows. Linux integration tests cover settings persistence, local access control,
+startup management, and duplicate-instance prevention. Real Windows quest
+completion requires separate validation.
+
+Package with the official runtime on Linux:
+
+```sh
+node scripts/download-runtime.mjs
+node scripts/package.mjs linux runtime/linux/node
+node scripts/package.mjs windows runtime/windows/node.exe
+```
+
+MIT. Upstream attribution is preserved in [LICENSE](LICENSE).
+Bundled runtime notices: [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

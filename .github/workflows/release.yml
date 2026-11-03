@@ -55,6 +55,7 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
           name: archives
@@ -62,4 +63,4 @@ jobs:
       - env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-        run: gh release create "$GITHUB_REF_NAME" dist/*.zip dist/*.sha256 --prerelease --title "Discord Quest Auto $GITHUB_REF_NAME" --notes "Windows x64 and Linux x64. Preview build; native runner checks passed on both platforms. Actual Windows quest completion requires user validation."
+        run: gh release create "$GITHUB_REF_NAME" dist/*.zip dist/*.sha256 --prerelease --title "Discord Quest Auto $GITHUB_REF_NAME" --notes-file docs/RELEASE_NOTES.md
