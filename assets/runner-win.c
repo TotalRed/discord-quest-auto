@@ -1,7 +1,9 @@
 /* Minimal native Windows runner. No network, credentials, or persistence.
  * Discord's game detection on Windows ignores windowless background processes,
- * so the runner owns a small top-level window (shown minimized, no focus steal)
- * titled with its own executable name, and pumps messages until it is closed. */
+ * so the runner owns a small top-level window titled with its own executable name
+ * and pumps messages until it is closed. The window is a visible tool window
+ * parked off-screen: Discord still sees it, but it stays out of the taskbar and
+ * Alt+Tab, so a dozen parallel quests do not flood the taskbar. */
 typedef unsigned short wchar;
 typedef void *HANDLE;
 typedef HANDLE HWND, HINSTANCE, HICON, HCURSOR, HBRUSH, HMENU;
@@ -32,9 +34,10 @@ __declspec(dllimport) LRESULT __stdcall DefWindowProcW(HWND, UINT, WPARAM, LPARA
 __declspec(dllimport) void __stdcall PostQuitMessage(int);
 
 #define WM_DESTROY 0x0002
-#define WS_OVERLAPPEDWINDOW 0x00CF0000
-#define SW_SHOWMINNOACTIVE 7
-#define CW_USEDEFAULT ((int)0x80000000)
+#define WS_POPUP 0x80000000
+#define WS_EX_TOOLWINDOW 0x00000080
+#define WS_EX_NOACTIVATE 0x08000000
+#define SW_SHOWNOACTIVATE 4
 
 static LRESULT __stdcall proc(HWND hwnd, UINT message, WPARAM w, LPARAM l) {
     if (message == WM_DESTROY) { PostQuitMessage(0); return 0; }
@@ -55,9 +58,9 @@ void mainCRTStartup(void) {
     wc.background = (HBRUSH)(UINT_PTR)6; /* COLOR_WINDOW + 1 */
     wc.name = className;
     RegisterClassW(&wc);
-    HWND hwnd = CreateWindowExW(0, className, title, WS_OVERLAPPEDWINDOW,
-        CW_USEDEFAULT, CW_USEDEFAULT, 360, 120, 0, 0, inst, 0);
-    if (hwnd) ShowWindow(hwnd, SW_SHOWMINNOACTIVE);
+    HWND hwnd = CreateWindowExW(WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE, className, title, WS_POPUP,
+        -32000, -32000, 1, 1, 0, 0, inst, 0);
+    if (hwnd) ShowWindow(hwnd, SW_SHOWNOACTIVATE);
 
     static MSG msg;
     while (GetMessageW(&msg, 0, 0, 0) > 0) { TranslateMessage(&msg); DispatchMessageW(&msg); }

@@ -222,6 +222,8 @@ await new Promise((resolve, reject) => { server.once('error', reject); server.li
 const port = server.address().port;
 await writeFile(infoPath, JSON.stringify({ port, token }), { mode: 0o600 });
 if (ui) openBrowser(`http://127.0.0.1:${port}/#${token}`);
+// Refresh the autostart entry: it may predate the desktop window (older installs).
+if (settings.autostart) await setAutostart(true).catch(console.error);
 await startWorker();
 async function quit() {
     if (quitting) return;
