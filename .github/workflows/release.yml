@@ -1,0 +1,65 @@
+name: Build and test archives
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: dtolnay/rust-toolchain@stable
+      - run: sudo apt-get update && sudo apt-get install -y clang lld llvm zip unzip
+      - name: Build native runners
+        run: |
+          rustc assets/runner-linux.rs -O -C target-feature=+crt-static -C strip=symbols -o assets/runner-linux
+          clang --target=x86_64-pc-windows-msvc -c -Oz -fno-stack-protector -o /tmp/runner.obj assets/runner-win.c
+          llvm-dlltool -m i386:x86-64 -d assets/kernel32.def -l /tmp/kernel32.lib
+          lld-link /entry:mainCRTStartup /subsystem:windows /nodefaultlib /out:assets/runner-win.exe /tmp/runner.obj /tmp/kernel32.lib
+      - run: node --test tests/*.test.mjs
+      - run: node scripts/download-runtime.mjs
+      - run: node scripts/package.mjs linux runtime/linux/node
+      - run: node scripts/package.mjs windows runtime/windows/node.exe
+      - uses: actions/upload-artifact@v4
+        with:
+          name: archives
+          path: |
+            dist/*.zip
+            dist/*.sha256
+  windows-smoke:
+    needs: build
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: archives
+          path: dist
+      - shell: pwsh
+        run: |
+          $archive = Get-ChildItem dist/*windows-x64.zip | Select-Object -First 1
+          Expand-Archive $archive.FullName -DestinationPath extracted
+          $app = Get-ChildItem extracted -Directory | Select-Object -First 1
+          Copy-Item "$($app.FullName)/assets/runner-win.exe" assets/runner-win.exe
+          & "$($app.FullName)/runtime/node.exe" --test tests/*.test.mjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+  publish:
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: [build, windows-smoke]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: archives
+          path: dist
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: gh release create "$GITHUB_REF_NAME" dist/*.zip dist/*.sha256 --prerelease --title "Discord Quest Auto $GITHUB_REF_NAME" --notes "Windows x64 and Linux x64. Preview build; native runner checks passed on both platforms. Actual Windows quest completion requires user validation."

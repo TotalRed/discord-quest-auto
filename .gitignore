@@ -1,0 +1,11 @@
+runtime/
+assets/runner-linux
+assets/runner-win.exe
+dist/
+node_modules/
+*.log
+.cache/
+settings.json
+control.json
+*.env
+__pycache__/
